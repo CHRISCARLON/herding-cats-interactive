@@ -5,7 +5,6 @@ description = "Interactive shell interface for HerdingCats library"
 authors = ["Your Name <your.email@example.com>"]
 
 [tool.poetry.dependencies]
-HerdingCats = { path = "../herding-cats" }
 python = "3.11.9"
 loguru = "^0.7.2"
 requests = "^2.32.3"
@@ -21,6 +20,7 @@ ruff = "^0.6.7"
 tqdm = "^4.67.1"
 textual = "^1.0.0"
 textual-dev = "^1.7.0"
+herdingcats = {path = "../herding-cats"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

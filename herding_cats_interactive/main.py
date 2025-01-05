@@ -1,6 +1,8 @@
 from textual.app import App
-from textual.widgets import Header, Input, Footer, Button, RichLog, DataTable
-from textual.containers import Container, Horizontal
+from textual.widgets import Header, Input, Footer, Button, RichLog
+from textual.containers import Container, Horizontal, Center, Middle
+from textual.widgets import ProgressBar
+from textual.events import Key
 from HerdingCats.session.cat_session import CatSession, CatalogueType
 from HerdingCats.endpoints.api_endpoints import (
     CkanDataCatalogues,
@@ -12,11 +14,12 @@ from HerdingCats.data_loader.data_loader import CkanCatResourceLoader, OpenDataS
 
 from loguru import logger
 from rich.text import Text
-from rich.console import Console
 from rich.style import Style
 
 class TextualRichLogHandler:
-    """Custom logger handler that sends output to a Textual RichLog widget."""
+    """
+    Custom logger handler that sends output to a Textual RichLog widget.
+    """
 
     def __init__(self, log_display: RichLog):
         self.log_display = log_display
@@ -48,49 +51,64 @@ class TextualRichLogHandler:
         pass
 
 class InteractiveCats(App):
-    """Create an interactive terminal session with the HerdingCats library."""
+    """
+    Create an interactive terminal session with the HerdingCats library.
+    """
 
     CSS = """
-    #button-container {
-        height: auto;
-        align: left middle;
-        padding: 1 2;
-    }
+        #button-container {
+            height: auto;
+            align: left middle;
+            padding: 1 2;
+        }
 
-    #button-container Button {
-        background: $primary;
-        color: $text;
-        margin: 0 1;
-        padding: 0 2;
-        height: 3;
-        border: heavy $primary;
-    }
+        #button-container Button {
+            background: $primary;
+            color: $text;
+            margin: 0 1;
+            padding: 0 2;
+            height: 3;
+            border: $primary;
+        }
 
-    #button-container Button:hover {
-        background: $primary-darken-2;
-        border: heavy $primary-darken-2;
-    }
+        #button-container Button:focus {
+            border: $primary;
+        }
 
-    RichLog {
-        height: 1fr;
-        min-height: 25;
-        border: solid $panel;
-        background: $surface;
-        color: $text;
-        margin: 1 1;
-    }
 
-    Screen {
-        overflow: hidden;
-    }
+        #button-container Button.connected-button {
+            background: $success !important;
+            border: $success !important;
+            color: $text;
+        }
 
-    .active-catalog {
-        background: $boost;
-        color: $text;
-        margin-left: 2;
-        border: none;
-    }
-    """
+        #button-container Button.connected-button:focus {
+            border: $success !important;
+        }
+
+        #button-container Button:hover {
+            background: $primary-darken-2;
+            border: $primary-darken-2;
+        }
+
+        #button-container Button.connected-button:hover {
+            background: $success-darken-2 !important;
+            border: $success-darken-2 !important;
+        }
+
+        RichLog {
+            height: 1fr;
+            min-height: 25;
+            border: solid $panel;
+            background: $surface;
+            color: $text;
+            margin: 1 1;
+        }
+
+        Screen {
+            overflow: hidden;
+        }
+        """
 
     def __init__(self):
         super().__init__()
@@ -103,14 +121,14 @@ class InteractiveCats(App):
         self.data_table = None
         self.catalogs = {
             # CKAN Catalogs
-            'london': ('ckan', CkanDataCatalogues.LONDON_DATA_STORE),
+            'london-datastore': ('ckan', CkanDataCatalogues.LONDON_DATA_STORE),
             'uk-gov': ('ckan', CkanDataCatalogues.UK_GOV),
             'subak': ('ckan', CkanDataCatalogues.SUBAK),
-            'humanitarian': ('ckan', CkanDataCatalogues.HUMANITARIAN_DATA_STORE),
+            'humanitarian-open-data': ('ckan', CkanDataCatalogues.HUMANITARIAN_DATA_STORE),
             'open-africa': ('ckan', CkanDataCatalogues.OPEN_AFRICA),
 
             # OpenDataSoft Catalogs
-            'uk-power': ('opendatasoft', OpenDataSoftDataCatalogues.UK_POWER_NETWORKS),
+            'uk-power-networks': ('opendatasoft', OpenDataSoftDataCatalogues.UK_POWER_NETWORKS),
             'infrabel': ('opendatasoft', OpenDataSoftDataCatalogues.INFRABEL),
             'paris': ('opendatasoft', OpenDataSoftDataCatalogues.PARIS),
             'toulouse': ('opendatasoft', OpenDataSoftDataCatalogues.TOULOUSE),
@@ -122,6 +140,10 @@ class InteractiveCats(App):
             # French Government Catalog
             'french-gov': ('french_gov', FrenchGouvCatalogue.GOUV_FR)
         }
+
+    BINDINGS = [
+        ("q", "quit", "Quit the app")
+    ]
 
     def compose(self):
         """Create child widgets for the app."""
@@ -138,14 +160,14 @@ class InteractiveCats(App):
         yield Footer()
 
     def on_mount(self):
-        """Set up logging and theme when the app starts."""
+        """Initialise all the required things on start up"""
         # Set theme
         self.theme = "flexoki"
 
         # Set up logging with RichLog
-        self.rich_log = self.query_one(RichLog)
-        self.rich_log.focus()
-        self.logger_handler = TextualRichLogHandler(self.rich_log)  # Correct reference
+        rich_log = self.query_one(RichLog)
+        rich_log.focus()
+        self.logger_handler = TextualRichLogHandler(rich_log)
 
         # Remove default logger handlers
         logger.remove()
@@ -155,32 +177,7 @@ class InteractiveCats(App):
         # Welcome message with rich formatting
         welcome_text = Text("Welcome to Interactive Cats 🐈‍⬛\n", style=Style(color="green", bold=True))
         welcome_text.append("Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...", style=Style(color="blue"))
-        self.rich_log.write(welcome_text)
-
-    def toggle_to_data_table(self, df):
-        """Unmount the RichLog and mount the DataTable with provided dataframe."""
-        if self.rich_log:
-            self.rich_log.remove()  # Unmount RichLog
-        self.data_table = DataTable()  # Create a new DataTable
-        self.data_table.add_columns(*df.columns)
-
-        # Add data to DataTable
-        for i, row in enumerate(df.iter_rows(named=True)):
-            if i >= 15:
-                break
-            self.data_table.add_row(*[str(val) for val in row])
-
-        self.mount(self.data_table)  # Mount DataTable
-
-    def toggle_to_rich_log(self):
-        """Unmount the DataTable and re-mount the RichLog."""
-        if self.data_table:
-            self.data_table.remove()  # Unmount the DataTable
-
-        if self.rich_log is not None:
-            self.mount(self.rich_log)  # Re-mount RichLog safely
-        else:
-            logger.error("RichLog is not initialized, cannot mount.")
+        rich_log.write(welcome_text)
 
     async def _check_site_health(self) -> None:
         """Check site health."""
@@ -219,7 +216,7 @@ class InteractiveCats(App):
 
     def format_catalog_list(self) -> Text:
         """Format the catalog list for display with rich text formatting."""
-        output = Text("Available Catalogs:\n\n", style=Style(bold=True))
+        output = Text("Available Catalogs:\n\n", style=Style(color="green", bold=True))
 
         # Group catalogs by type
         ckan_catalogs = [name for name, (type_, _) in self.catalogs.items() if type_ == 'ckan']
@@ -250,82 +247,92 @@ class InteractiveCats(App):
         """Format the available commands list with rich text formatting."""
         output = Text()
 
+        # Helper functions
+        def _add_command_section(commands: list[tuple[str, str]], header: str | None = None):
+            if header:
+                output.append(f"{header}\n", style=Style(color="yellow", bold=True))
+            for cmd, desc in commands:
+                output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
+                output.append(f": {desc}\n", style=Style(color="white"))
+
+        def _add_examples(examples: list[tuple[str, str]]):
+            output.append("\nExample Usage:\n", style=Style(color="green", bold=True))
+            output.append("--------------\n")
+            for cmd, desc in examples:
+                output.append(f"  {cmd}", style=Style(color="cyan"))
+                output.append(f"     : {desc}\n", style=Style(color="white"))
+
         # Basic commands section
         output.append("Basic Commands:\n", style=Style(color="green", bold=True))
         output.append("-------------\n")
-        basic_commands = [
+        _add_command_section([
             ("connect <catalog>", "Connect to a specific data catalog"),
             ("close", "Close the current connection"),
             ("quit", "Exit the application")
-        ]
-        for cmd, desc in basic_commands:
-            output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
-            output.append(f": {desc}\n", style=Style(color="white"))
+        ])
 
-        # If connected, show catalog-specific commands
-        if self.explorer:
-            output.append("\nCatalog-Specific Commands:\n", style=Style(color="green", bold=True))
-            output.append("------------------------\n")
+        # Catalog-specific commands using match statement
+        match self.explorer:
+            case CkanCatExplorer():
+                output.append("\nCatalog-Specific Commands:\n", style=Style(color="green", bold=True))
+                output.append("------------------------\n")
 
-            if isinstance(self.explorer, CkanCatExplorer):
-                output.append("CKAN Commands:\n", style=Style(color="yellow", bold=True))
-                ckan_commands = [
+                _add_command_section([
                     ("list packages", "Show all available packages"),
                     ("package info <name>", "Show detailed information about a specific package"),
                     ("search <query> <rows>", "Search packages with query and limit results"),
-                    ("list orgs", "Show all organizations in the catalog")
-                ]
-                for cmd, desc in ckan_commands:
-                    output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
-                    output.append(f": {desc}\n", style=Style(color="white"))
+                    ("list orgs", "Show all organizations in the catalog"),
+                    ("load <id>", "Load a data sample into a DataFrame")
+                ], "CKAN Commands:")
 
-            elif isinstance(self.explorer, OpenDataSoftCatExplorer):
-                output.append("OpenDataSoft Commands:\n", style=Style(color="yellow", bold=True))
-                ods_commands = [
+                _add_examples([
+                    ("search police 10", "Search for 'police' datasets, limit to 10 results"),
+                    ("package info london-crime", "Show details for package named 'london-crime'")
+                ])
+
+            case OpenDataSoftCatExplorer():
+                output.append("\nCatalog-Specific Commands:\n", style=Style(color="green", bold=True))
+                output.append("------------------------\n")
+
+                _add_command_section([
                     ("list datasets", "Show all available datasets"),
                     ("dataset info <id>", "Show detailed information about a specific dataset"),
-                    ("dataset export <id>", "Show available export formats for a dataset")
-                ]
-                for cmd, desc in ods_commands:
-                    output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
-                    output.append(f": {desc}\n", style=Style(color="white"))
+                    ("dataset export <id>", "Show available export formats for a dataset"),
+                    ("load <id> <format> <api-key>", "Load a data sample into a DataFrame. Api-key is optional.")
+                ], "OpenDataSoft Commands:")
 
-            elif isinstance(self.explorer, FrenchGouvCatExplorer):
-                output.append("French Government Commands:\n", style=Style(color="yellow", bold=True))
-                fr_commands = [
+                _add_examples([
+                    ("dataset info power-consumption", "Show details for dataset 'power-consumption'"),
+                    ("dataset export energy-data", "Show export formats for 'energy-data'")
+                ])
+
+            case FrenchGouvCatExplorer():
+                output.append("\nCatalog-Specific Commands:\n", style=Style(color="green", bold=True))
+                output.append("------------------------\n")
+
+                _add_command_section([
                     ("list datasets", "Show all available datasets"),
                     ("dataset meta <id>", "Show metadata for a specific dataset"),
                     ("resource meta <dataset_id> <resource_id>", "Show metadata for a specific resource"),
                     ("list orgs", "Show all organizations in the catalog")
-                ]
-                for cmd, desc in fr_commands:
-                    output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
-                    output.append(f": {desc}\n", style=Style(color="white"))
+                ], "French Government Commands:")
 
-            # Add examples section if connected
-            output.append("\nExample Usage:\n", style=Style(color="green", bold=True))
-            output.append("--------------\n")
-            if isinstance(self.explorer, CkanCatExplorer):
-                output.append("  search police 10", style=Style(color="cyan"))
-                output.append("     : Search for 'police' datasets, limit to 10 results\n", style=Style(color="white"))
-                output.append("  package info london-crime", style=Style(color="cyan"))
-                output.append("     : Show details for package named 'london-crime'\n", style=Style(color="white"))
-            elif isinstance(self.explorer, OpenDataSoftCatExplorer):
-                output.append("  dataset info power-consumption", style=Style(color="cyan"))
-                output.append("     : Show details for dataset 'power-consumption'\n", style=Style(color="white"))
-                output.append("  export options energy-data", style=Style(color="cyan"))
-                output.append("     : Show export formats for 'energy-data'\n", style=Style(color="white"))
-            elif isinstance(self.explorer, FrenchGouvCatExplorer):
-                output.append("  dataset meta 123abc", style=Style(color="cyan"))
-                output.append("     : Show metadata for dataset with ID '123abc'\n", style=Style(color="white"))
-                output.append("  resource meta 123abc res456", style=Style(color="cyan"))
-                output.append("     : Show metadata for resource 'res456' in dataset '123abc'\n", style=Style(color="white"))
-        else:
-            # If not connected, show connection example
-            output.append("\nConnect First:\n", style=Style(color="yellow", bold=True))
-            output.append("Use 'show catalogs' to see available catalogs, then connect to one:\n", style=Style(color="white"))
-            output.append("  connect london", style=Style(color="cyan"))
-            output.append("     : Connect to the London Data Store\n", style=Style(color="white"))
+                _add_examples([
+                    ("dataset meta 123abc", "Show metadata for dataset with ID '123abc'"),
+                    ("resource meta 123abc res456", "Show metadata for resource 'res456' in dataset '123abc'")
+                ])
+
+            case None:
+                output.append("\nConnect First:\n", style=Style(color="yellow", bold=True))
+                output.append("Use 'show catalogs' to see available catalogs, then connect to one:\n",
+                            style=Style(color="white"))
+                _add_examples([
+                    ("connect london", "Connect to the London Data Store"),
+                    ("connect uk-power-networks", "Connect to the UKPN Data Store")
+                ])
+
+            case _:  # Catch-all case for unknown explorer types
+                output.append("\nUnknown explorer type\n", style=Style(color="red", bold=True))
 
         return output
 
@@ -369,6 +376,12 @@ class InteractiveCats(App):
         except Exception as e:
             raise e
 
+    async def on_key(self, event: Key):
+        if event.key =='q':
+            if self.session:
+                self.session.close_session()
+            self.exit()
+
     async def on_button_pressed(self, event: Button.Pressed):
         """Handle button presses."""
         rich_log = self.query_one(RichLog)
@@ -389,6 +402,8 @@ class InteractiveCats(App):
         command = cmd[0].lower()
         self.clear_log()
         rich_log = self.query_one(RichLog)
+
+        self.query_one(Input).value = ""
 
         match command:
             case "connect":
@@ -413,7 +428,7 @@ class InteractiveCats(App):
                         self.active_catalog_button.remove()
 
                     button_container = self.query_one("#button-container")
-                    self.active_catalog_button = Button(f"Connected: {catalog.upper()}", classes="active-catalog")
+                    self.active_catalog_button = Button(f"Connected: {catalog.upper()}", classes="connected-button")
                     button_container.mount(self.active_catalog_button)
 
                     catalog_type_name = self.session.get_catalogue_type().value
