@@ -1,5 +1,5 @@
 from textual.app import App
-from textual.widgets import Header, Input, Footer, Button, RichLog
+from textual.widgets import Header, Input, Footer, Button, RichLog, DataTable
 from textual.containers import Container, Horizontal
 from HerdingCats.session.cat_session import CatSession, CatalogueType
 from HerdingCats.endpoints.api_endpoints import (
@@ -17,7 +17,7 @@ from rich.style import Style
 
 class TextualRichLogHandler:
     """Custom logger handler that sends output to a Textual RichLog widget."""
-    
+
     def __init__(self, log_display: RichLog):
         self.log_display = log_display
         # Define styles for different log levels
@@ -57,12 +57,12 @@ class InteractiveCats(App):
         padding: 1 2;
     }
 
-    #button-container Button {      
-        background: $primary;  
-        color: $text;    
-        margin: 0 1;          
-        padding: 0 2;        
-        height: 3;            
+    #button-container Button {
+        background: $primary;
+        color: $text;
+        margin: 0 1;
+        padding: 0 2;
+        height: 3;
         border: heavy $primary;
     }
 
@@ -99,6 +99,8 @@ class InteractiveCats(App):
         self.explorer = None
         self.logger_handler = None
         self.active_catalog_button = None
+        self.rich_log = None
+        self.data_table = None
         self.catalogs = {
             # CKAN Catalogs
             'london': ('ckan', CkanDataCatalogues.LONDON_DATA_STORE),
@@ -106,7 +108,7 @@ class InteractiveCats(App):
             'subak': ('ckan', CkanDataCatalogues.SUBAK),
             'humanitarian': ('ckan', CkanDataCatalogues.HUMANITARIAN_DATA_STORE),
             'open-africa': ('ckan', CkanDataCatalogues.OPEN_AFRICA),
-            
+
             # OpenDataSoft Catalogs
             'uk-power': ('opendatasoft', OpenDataSoftDataCatalogues.UK_POWER_NETWORKS),
             'infrabel': ('opendatasoft', OpenDataSoftDataCatalogues.INFRABEL),
@@ -116,7 +118,7 @@ class InteractiveCats(App):
             'edf-energy': ('opendatasoft', OpenDataSoftDataCatalogues.EDF_ENERGY),
             'cadent-gas': ('opendatasoft', OpenDataSoftDataCatalogues.CADENT_GAS),
             'grd-france': ('opendatasoft', OpenDataSoftDataCatalogues.GRD_FRANCE),
-            
+
             # French Government Catalog
             'french-gov': ('french_gov', FrenchGouvCatalogue.GOUV_FR)
         }
@@ -139,27 +141,51 @@ class InteractiveCats(App):
         """Set up logging and theme when the app starts."""
         # Set theme
         self.theme = "flexoki"
-        
+
         # Set up logging with RichLog
-        rich_log = self.query_one(RichLog)
-        rich_log.focus()
-        self.logger_handler = TextualRichLogHandler(rich_log)
-        
+        self.rich_log = self.query_one(RichLog)
+        self.rich_log.focus()
+        self.logger_handler = TextualRichLogHandler(self.rich_log)  # Correct reference
+
         # Remove default logger handlers
         logger.remove()
         # Add our custom handler
         logger.add(self.logger_handler, format="{message}")
-        
+
         # Welcome message with rich formatting
         welcome_text = Text("Welcome to Interactive Cats 🐈‍⬛\n", style=Style(color="green", bold=True))
-        welcome_text.append("Use 'connect <catalog>' to start, or click 'Show Available Catalogs'", style=Style(color="blue"))
-        rich_log.write(welcome_text)
+        welcome_text.append("Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...", style=Style(color="blue"))
+        self.rich_log.write(welcome_text)
+
+    def toggle_to_data_table(self, df):
+        """Unmount the RichLog and mount the DataTable with provided dataframe."""
+        if self.rich_log:
+            self.rich_log.remove()  # Unmount RichLog
+        self.data_table = DataTable()  # Create a new DataTable
+        self.data_table.add_columns(*df.columns)
+
+        # Add data to DataTable
+        for i, row in enumerate(df.iter_rows(named=True)):
+            if i >= 15:
+                break
+            self.data_table.add_row(*[str(val) for val in row])
+
+        self.mount(self.data_table)  # Mount DataTable
+
+    def toggle_to_rich_log(self):
+        """Unmount the DataTable and re-mount the RichLog."""
+        if self.data_table:
+            self.data_table.remove()  # Unmount the DataTable
+
+        if self.rich_log is not None:
+            self.mount(self.rich_log)  # Re-mount RichLog safely
+        else:
+            logger.error("RichLog is not initialized, cannot mount.")
 
     async def _check_site_health(self) -> None:
         """Check site health."""
         if not self.explorer:
             return
-            
         try:
             if isinstance(self.explorer, (CkanCatExplorer, OpenDataSoftCatExplorer)):
                 self.explorer.check_site_health()
@@ -194,55 +220,53 @@ class InteractiveCats(App):
     def format_catalog_list(self) -> Text:
         """Format the catalog list for display with rich text formatting."""
         output = Text("Available Catalogs:\n\n", style=Style(bold=True))
-        
+
         # Group catalogs by type
         ckan_catalogs = [name for name, (type_, _) in self.catalogs.items() if type_ == 'ckan']
         ods_catalogs = [name for name, (type_, _) in self.catalogs.items() if type_ == 'opendatasoft']
         fr_catalogs = [name for name, (type_, _) in self.catalogs.items() if type_ == 'french_gov']
-        
+
         output.append("CKAN Catalogs:\n", style=Style(color="cyan", bold=True))
         for name in sorted(ckan_catalogs):
             url = self.catalogs[name][1].value
             output.append(f"- {name}: ", style=Style(color="yellow"))
             output.append(f"{url}\n", style=Style(color="white"))
-        
+
         output.append("\nOpenDataSoft Catalogs:\n", style=Style(color="cyan", bold=True))
         for name in sorted(ods_catalogs):
             url = self.catalogs[name][1].value
             output.append(f"- {name}: ", style=Style(color="yellow"))
             output.append(f"{url}\n", style=Style(color="white"))
-        
+
         output.append("\nFrench Government Catalogs:\n", style=Style(color="cyan", bold=True))
         for name in sorted(fr_catalogs):
             url = self.catalogs[name][1].value
             output.append(f"- {name}: ", style=Style(color="yellow"))
             output.append(f"{url}\n", style=Style(color="white"))
-            
+
         return output
 
     def format_commands_list(self) -> Text:
         """Format the available commands list with rich text formatting."""
         output = Text()
-        
+
         # Basic commands section
         output.append("Basic Commands:\n", style=Style(color="green", bold=True))
         output.append("-------------\n")
         basic_commands = [
             ("connect <catalog>", "Connect to a specific data catalog"),
             ("close", "Close the current connection"),
-            ("show catalogs", "Display available catalogs"),
-            ("show commands", "Display this help message"),
             ("quit", "Exit the application")
         ]
         for cmd, desc in basic_commands:
             output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
             output.append(f": {desc}\n", style=Style(color="white"))
-            
+
         # If connected, show catalog-specific commands
         if self.explorer:
             output.append("\nCatalog-Specific Commands:\n", style=Style(color="green", bold=True))
             output.append("------------------------\n")
-            
+
             if isinstance(self.explorer, CkanCatExplorer):
                 output.append("CKAN Commands:\n", style=Style(color="yellow", bold=True))
                 ckan_commands = [
@@ -254,18 +278,18 @@ class InteractiveCats(App):
                 for cmd, desc in ckan_commands:
                     output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
                     output.append(f": {desc}\n", style=Style(color="white"))
-                    
+
             elif isinstance(self.explorer, OpenDataSoftCatExplorer):
                 output.append("OpenDataSoft Commands:\n", style=Style(color="yellow", bold=True))
                 ods_commands = [
                     ("list datasets", "Show all available datasets"),
                     ("dataset info <id>", "Show detailed information about a specific dataset"),
-                    ("export options <id>", "Show available export formats for a dataset")
+                    ("dataset export <id>", "Show available export formats for a dataset")
                 ]
                 for cmd, desc in ods_commands:
                     output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
                     output.append(f": {desc}\n", style=Style(color="white"))
-                    
+
             elif isinstance(self.explorer, FrenchGouvCatExplorer):
                 output.append("French Government Commands:\n", style=Style(color="yellow", bold=True))
                 fr_commands = [
@@ -277,7 +301,7 @@ class InteractiveCats(App):
                 for cmd, desc in fr_commands:
                     output.append(f"  {cmd:<25}", style=Style(color="cyan", bold=True))
                     output.append(f": {desc}\n", style=Style(color="white"))
-                    
+
             # Add examples section if connected
             output.append("\nExample Usage:\n", style=Style(color="green", bold=True))
             output.append("--------------\n")
@@ -302,7 +326,7 @@ class InteractiveCats(App):
             output.append("Use 'show catalogs' to see available catalogs, then connect to one:\n", style=Style(color="white"))
             output.append("  connect london", style=Style(color="cyan"))
             output.append("     : Connect to the London Data Store\n", style=Style(color="white"))
-            
+
         return output
 
     def clear_log(self):
@@ -312,12 +336,12 @@ class InteractiveCats(App):
 
     def load_ckan_dataset(self, dataset_id):
         """Load a CKAN dataset into a Polars DataFrame"""
-        if not self.explorer:
-            return "Not connected. Use connect() first"
+        if not isinstance(self.explorer, CkanCatExplorer):
+            return "Not connected to a CKAN explorer. Use connect() first."
         if not isinstance(self.loader, CkanCatResourceLoader):
             return "Not connected to a CKAN catalog"
         try:
-            dataset = self.explorer.show_package_info(dataset_id) 
+            dataset = self.explorer.show_package_info(dataset_id)
             if not dataset:
                 raise ValueError(f"No dataset found with ID: {dataset_id}")
             resource_data = self.explorer.extract_resource_url(dataset)
@@ -328,11 +352,11 @@ class InteractiveCats(App):
             return str(ve)
         except Exception as e:
             raise e
-            
+
     def load_opendatasoft_dataset(self, dataset_id, format_type, api_key=None):
         """Load an OpenDataSoft dataset into a Polars DataFrame"""
-        if not self.explorer:
-            return "Not connected. Use connect() first"
+        if not isinstance(self.explorer, OpenDataSoftCatExplorer):
+            return "Not connected to a CKAN explorer. Use connect() first."
         if not isinstance(self.loader, OpenDataSoftResourceLoader):
             return "Not connected to an OpenDataSoft catalog"
         try:
@@ -395,7 +419,7 @@ class InteractiveCats(App):
                     catalog_type_name = self.session.get_catalogue_type().value
                     rich_log.write(Text(f"Connected to {catalog} ({catalog_type_name})\n", style=Style(color="green")))
                     rich_log.write(Text(f"URL: {catalog_enum.value}\n", style=Style(color="blue")))
-                    
+
                     # Check site health after connection
                     await self._check_site_health()
                 except Exception as e:
@@ -407,22 +431,22 @@ class InteractiveCats(App):
                     if self.active_catalog_button:
                         catalog_name = self.active_catalog_button.label.split(":")[-1]
                     else:
-                        catalog_name = "UNKNOWN"  # Fallback if button not found
-                    
+                        catalog_name = "UNKNOWN"
+
                     catalog_type = self.session.get_catalogue_type().value
-                    
+
                     # Close connection and cleanup
                     self.session.close_session()
                     self.session = None
                     self.explorer = None
-                    
+
                     # Remove button
                     if self.active_catalog_button:
                         self.active_catalog_button.remove()
                         self.active_catalog_button = None
-                        
+
                     # Show informative close message
-                    rich_log.write(Text(f"Connection Closed: {catalog_name} ({catalog_type})\n", 
+                    rich_log.write(Text(f"Connection Closed: {catalog_name} ({catalog_type})\n",
                                     style=Style(color="green")))
                 else:
                     rich_log.write(Text("No active connection\n", style=Style(color="yellow")))
@@ -431,11 +455,11 @@ class InteractiveCats(App):
                 if not self.explorer:
                     rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
                     return
-                    
+
                 if len(cmd) < 2:
                     rich_log.write(Text("Please specify what to list (packages, datasets, orgs)\n", style=Style(color="yellow")))
                     return
-                    
+
                 subcommand = cmd[1].lower()
                 try:
                     match self.explorer:
@@ -504,13 +528,13 @@ class InteractiveCats(App):
                 if not self.explorer:
                     rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
                     return
-                    
+
                 if len(cmd) < 2:
                     rich_log.write(Text("Please provide the dataset ID\n", style=Style(color="yellow")))
                     return
-                    
+
                 dataset_id = cmd[1]
-                
+
                 try:
                     match self.explorer:
                         case CkanCatExplorer():
@@ -521,12 +545,16 @@ class InteractiveCats(App):
                             df = self.load_opendatasoft_dataset(dataset_id, format_type, api_key)
                         case _:
                             raise ValueError("Unsupported catalog type")
-                            
+
                     if isinstance(df, str):
                         rich_log.write(Text(df + "\n", style=Style(color="red")))
                     else:
-                        rich_log.write(Text("Data loaded successfully:\n", style=Style(color="green", bold=True)))
-                        rich_log.write(df.head())
+                        rich_log.write(Text("Data Loaded Successfully ✅\n", style=Style(color="green", bold=True)))
+                        rich_log.write("DATA COLUMNS AND DATA TYPES")
+                        rich_log.write(df.columns)
+                        rich_log.write(df.dtypes)
+                        rich_log.write("DATA SAMPLE")
+                        rich_log.write(df.head(10))
                 except Exception as e:
                     rich_log.write(Text(f"Error loading data: {str(e)}\n", style=Style(color="red")))
 
@@ -534,14 +562,14 @@ class InteractiveCats(App):
                 if not self.explorer:
                     rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
                     return
-                    
+
                 if len(cmd) < 3:
                     rich_log.write(Text(f"Please provide the {command} command and ID\n", style=Style(color="yellow")))
                     return
-                    
+
                 subcommand = cmd[1].lower()
                 identifier = cmd[2]
-                
+
                 try:
                     match self.explorer:
                         case CkanCatExplorer() if command == "package":
