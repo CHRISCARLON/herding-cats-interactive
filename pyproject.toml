@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "herding-cats-shell"
+version = "0.1.0"
+description = "Interactive shell interface for HerdingCats library"
+authors = ["Your Name <your.email@example.com>"]
+
+[tool.poetry.dependencies]
+HerdingCats = { path = "../herding-cats" }
+python = "3.11.9"
+loguru = "^0.7.2"
+requests = "^2.32.3"
+pandas = "^2.2.2"
+openpyxl = "^3.1.5"
+polars = "^1.5.0"
+fastexcel = "^0.11.6"
+duckdb = "1.0.0"
+boto3 = "^1.35.23"
+pyarrow = "^17.0.0"
+xlrd = "^2.0.1"
+ruff = "^0.6.7"
+tqdm = "^4.67.1"
+textual = "^1.0.0"
+textual-dev = "^1.7.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+herding-cats-shell = "herding_cats_shell.shell:main"
