@@ -1,4 +1,4 @@
-# Interactive Terminal Session for HerdingCats
+# Interactive Terminal Session for HerdingCats 🐈‍⬛
 
 README TBC
 
