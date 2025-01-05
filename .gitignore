@@ -199,4 +199,3 @@ src/os_open_usrn_functions/explore_and_prep.py
 .venv_3.11
 .test_venv
 settings.json*
-main.py
