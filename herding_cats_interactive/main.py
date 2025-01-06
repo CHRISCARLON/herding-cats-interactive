@@ -1,7 +1,6 @@
 from textual.app import App
-from textual.widgets import Header, Input, Footer, Button, RichLog
-from textual.containers import Container, Horizontal, Center, Middle
-from textual.widgets import ProgressBar
+from textual.widgets import Header, Input, Footer, Button, RichLog, Rule
+from textual.containers import Container, Horizontal
 from textual.events import Key
 from HerdingCats.session.cat_session import CatSession, CatalogueType
 from HerdingCats.endpoints.api_endpoints import (
@@ -59,7 +58,7 @@ class InteractiveCats(App):
         #button-container {
             height: auto;
             align: left middle;
-            padding: 1 2;
+            padding: 1 0;
         }
 
         #button-container Button {
@@ -74,7 +73,6 @@ class InteractiveCats(App):
         #button-container Button:focus {
             border: $primary;
         }
-
 
         #button-container Button.connected-button {
             background: $success !important;
@@ -102,7 +100,7 @@ class InteractiveCats(App):
             border: solid $panel;
             background: $surface;
             color: $text;
-            margin: 1 1;
+            margin: 1;
         }
 
         Screen {
@@ -142,12 +140,12 @@ class InteractiveCats(App):
         }
 
     BINDINGS = [
-        ("q", "quit", "Quit the app")
+        ("q", "quit", "Quit")
     ]
 
     def compose(self):
         """Create child widgets for the app."""
-        yield Header()
+        yield Header(icon="+")
         yield Container(
             Horizontal(
                 Button("Show Available Catalogs", id="show-catalogs"),
