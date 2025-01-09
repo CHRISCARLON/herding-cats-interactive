@@ -1,3 +1,6 @@
+ /\_/\
+( o.o )
+
 # Interactive Terminal Session for HerdingCats 🐈‍⬛
 
 ## Getting Started

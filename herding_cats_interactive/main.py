@@ -1,5 +1,6 @@
+import asyncio
 from textual.app import App
-from textual.widgets import Header, Input, Footer, Button, RichLog, Rule
+from textual.widgets import Header, Input, Footer, Button, RichLog
 from textual.containers import Container, Horizontal
 from textual.events import Key
 from HerdingCats.session.cat_session import CatSession, CatalogueType
@@ -173,8 +174,14 @@ class InteractiveCats(App):
         logger.add(self.logger_handler, format="{message}")
 
         # Welcome message with rich formatting
-        welcome_text = Text("Welcome to Interactive Cats 🐈‍⬛\n", style=Style(color="green", bold=True))
-        welcome_text.append("Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...", style=Style(color="blue"))
+        cat_art = """
+         /\_/\\
+        ( o.o )
+        """
+
+        welcome_text = Text(cat_art, style=Style(color="blue", bold=True))
+        welcome_text.append("Welcome to Interactive Cats\n \n", style=Style(color="green", bold=True))
+        welcome_text.append("        Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...", style=Style(color="white"))
         rich_log.write(welcome_text)
 
     async def _check_site_health(self) -> None:
@@ -194,7 +201,7 @@ class InteractiveCats(App):
         if not self.session:
             return None, None
 
-        catalog_type = self.session.get_catalogue_type()
+        catalog_type = self.session.catalogue_type
         explorer = None
         loader = None
 
@@ -310,8 +317,8 @@ class InteractiveCats(App):
 
                 _add_command_section([
                     ("list datasets", "Show all available datasets"),
-                    ("dataset meta <id>", "Show metadata for a specific dataset"),
-                    ("resource meta <dataset_id> <resource_id>", "Show metadata for a specific resource"),
+                    ("dataset meta <dataset_id>", "Show metadata for a specific dataset"),
+                    ("resource meta <dataset_id>", "Show metadata for a specific resource"),
                     ("list orgs", "Show all organizations in the catalog")
                 ], "French Government Commands:")
 
@@ -390,6 +397,33 @@ class InteractiveCats(App):
             self.clear_log()
             rich_log.write(self.format_commands_list())
 
+    # TODO could we have this cycle until the data is loaded instead of needing to use a range when you call it?
+    async def compose_loading_dots(self, rich_log: RichLog, command: str):
+        """Display loading dots animation."""
+        dots = ["   ", ".  ", ".. ", "..."]
+        for dot in dots:
+            text = Text()
+            text.append("⚡ Please Wait! Processing Command: ", style=Style(color="cyan", italic=True))
+            text.append(command, style=Style(color="white"))
+            text.append(dot + "\n", style=Style(color="cyan"))
+            self.clear_log()
+            rich_log.write(text)
+            await asyncio.sleep(0.1)
+
+    # def format_list_for_display(self, data):
+    #     """Formats a list of dictionaries for display in the log."""
+    #     formatted_text = Text()
+
+    #     items = dict(data)
+
+    #     for item in items:
+    #         for key, value in item.items():
+    #             # Display each key-value pair on a new line
+    #             formatted_text.append(f"  {key}: ", style=Style(color="yellow"))
+    #             formatted_text.append(f"{value}\n", style=Style(color="white"))
+    #         formatted_text.append("\n")
+    #     return formatted_text
+
     async def on_input_submitted(self, message: Input.Submitted):
         """Handle input commands."""
         # Split and clean input
@@ -401,227 +435,233 @@ class InteractiveCats(App):
         self.clear_log()
         rich_log = self.query_one(RichLog)
 
+        # Show loading animation
+        for _ in range(1):
+            await self.compose_loading_dots(rich_log, message.value)
+
         self.query_one(Input).value = ""
+        self.clear_log()
 
-        match command:
-            case "connect":
-                if len(cmd) < 2:
-                    rich_log.write(Text("Please specify a catalog to connect to\n", style=Style(color="yellow")))
-                    rich_log.write(self.format_catalog_list())
-                    return
+        try:
+            match command:
+                case "connect":
+                    if len(cmd) < 2:
+                        rich_log.write(Text("Please specify a catalog to connect to\n", style=Style(color="yellow")))
+                        rich_log.write(self.format_catalog_list())
+                        return
 
-                catalog = cmd[1].lower()
-                if catalog not in self.catalogs:
-                    rich_log.write(Text(f"Invalid catalog: {catalog}\n", style=Style(color="red")))
-                    rich_log.write(self.format_catalog_list())
-                    return
+                    catalog = cmd[1].lower()
+                    if catalog not in self.catalogs:
+                        rich_log.write(Text(f"Invalid catalog: {catalog}\n", style=Style(color="red")))
+                        rich_log.write(self.format_catalog_list())
+                        return
 
-                try:
-                    catalog_type, catalog_enum = self.catalogs[catalog]
-                    self.session = CatSession(catalog_enum)
-                    self.session.start_session()
-                    self.explorer, self.loader = self.create_explorer()
+                    try:
+                        catalog_type, catalog_enum = self.catalogs[catalog]
+                        self.session = CatSession(catalog_enum)
+                        self.session.start_session()
+                        self.explorer, self.loader = self.create_explorer()
 
-                    if self.active_catalog_button:
-                        self.active_catalog_button.remove()
+                        if self.active_catalog_button:
+                            self.active_catalog_button.remove()
 
-                    button_container = self.query_one("#button-container")
-                    self.active_catalog_button = Button(f"Connected: {catalog.upper()}", classes="connected-button")
-                    button_container.mount(self.active_catalog_button)
+                        button_container = self.query_one("#button-container")
+                        self.active_catalog_button = Button(f"Connected: {catalog.upper()}", classes="connected-button")
+                        button_container.mount(self.active_catalog_button)
 
-                    catalog_type_name = self.session.get_catalogue_type().value
-                    rich_log.write(Text(f"Connected to {catalog} ({catalog_type_name})\n", style=Style(color="green")))
-                    rich_log.write(Text(f"URL: {catalog_enum.value}\n", style=Style(color="blue")))
+                        catalog_type_name = self.session.catalogue_type
+                        rich_log.write(Text(f"Connected to {catalog} ({catalog_type_name})\n", style=Style(color="green")))
+                        rich_log.write(Text(f"URL: {catalog_enum.value}\n", style=Style(color="blue")))
 
-                    # Check site health after connection
-                    await self._check_site_health()
-                except Exception as e:
-                    rich_log.write(Text(f"Error connecting to {catalog}: {str(e)}\n", style=Style(color="red")))
+                        # Check site health after connection
+                        await self._check_site_health()
+                    except Exception as e:
+                        rich_log.write(Text(f"Error connecting to {catalog}: {str(e)}\n", style=Style(color="red")))
 
-            case "close":
-                if self.session:
-                    # Get catalog info before closing - safely extract name from button text
-                    if self.active_catalog_button:
-                        catalog_name = self.active_catalog_button.label.split(":")[-1]
+                case "close":
+                    if self.session:
+                        # Get catalog info before closing - safely extract name from button text
+                        if self.active_catalog_button:
+                            catalog_name = self.active_catalog_button.label.split(":")[-1]
+                        else:
+                            catalog_name = "UNKNOWN"
+
+                        catalog_type = self.session.catalogue_type.value
+
+                        # Close connection and cleanup
+                        self.session.close_session()
+                        self.session = None
+                        self.explorer = None
+
+                        # Remove button
+                        if self.active_catalog_button:
+                            self.active_catalog_button.remove()
+                            self.active_catalog_button = None
+
+                        # Show informative close message
+                        rich_log.write(Text(f"Connection Closed: {catalog_name} ({catalog_type})\n",
+                                        style=Style(color="green")))
                     else:
-                        catalog_name = "UNKNOWN"
+                        rich_log.write(Text("No active connection\n", style=Style(color="yellow")))
 
-                    catalog_type = self.session.get_catalogue_type().value
+                case "list":
+                    if not self.explorer:
+                        rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
+                        return
 
-                    # Close connection and cleanup
-                    self.session.close_session()
-                    self.session = None
-                    self.explorer = None
+                    if len(cmd) < 2:
+                        rich_log.write(Text("Please specify what to list (packages, datasets, orgs)\n", style=Style(color="yellow")))
+                        return
 
-                    # Remove button
-                    if self.active_catalog_button:
-                        self.active_catalog_button.remove()
-                        self.active_catalog_button = None
-
-                    # Show informative close message
-                    rich_log.write(Text(f"Connection Closed: {catalog_name} ({catalog_type})\n",
-                                    style=Style(color="green")))
-                else:
-                    rich_log.write(Text("No active connection\n", style=Style(color="yellow")))
-
-            case "list":
-                if not self.explorer:
-                    rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
-                    return
-
-                if len(cmd) < 2:
-                    rich_log.write(Text("Please specify what to list (packages, datasets, orgs)\n", style=Style(color="yellow")))
-                    return
-
-                subcommand = cmd[1].lower()
-                try:
-                    match self.explorer:
-                        case CkanCatExplorer():
-                            match subcommand:
-                                case "packages":
-                                    packages = self.explorer.get_package_list()
-                                    rich_log.write(Text(f"Found {len(packages)} packages\n\n", style=Style(color="green", bold=True)))
-                                    rich_log.write(packages)
-                                case "orgs":
-                                    count, orgs = self.explorer.get_organisation_list()
-                                    rich_log.write(Text(f"Found {count} organizations\n\n", style=Style(color="green", bold=True)))
-                                    rich_log.write(orgs)
-                                case _:
-                                    rich_log.write(Text(f"Unknown list command: {subcommand}\n", style=Style(color="yellow")))
-                        case OpenDataSoftCatExplorer():
-                            match subcommand:
-                                case "datasets":
-                                    datasets = self.explorer.fetch_all_datasets()
-                                    if datasets:
-                                        rich_log.write(Text(f"Found {len(datasets)} datasets\n\n", style=Style(color="green", bold=True)))
-                                        rich_log.write(datasets)
-                                    else:
-                                        rich_log.write(Text("No datasets found\n", style=Style(color="yellow")))
-                                case _:
-                                    rich_log.write(Text(f"Unknown list command: {subcommand}\n", style=Style(color="yellow")))
-                        case FrenchGouvCatExplorer():
-                            match subcommand:
-                                case "datasets":
-                                    datasets = self.explorer.get_all_datasets()
-                                    if datasets:
-                                        rich_log.write(Text(f"Found {len(datasets)} datasets\n\n", style=Style(color="green", bold=True)))
-                                        rich_log.write(datasets)
-                                    else:
-                                        rich_log.write(Text("No datasets found\n", style=Style(color="yellow")))
-                                case "orgs":
-                                    orgs = self.explorer.get_all_orgs()
-                                    if orgs:
-                                        rich_log.write(Text(f"Found {len(orgs)} organizations\n\n", style=Style(color="green", bold=True)))
+                    subcommand = cmd[1].lower()
+                    try:
+                        match self.explorer:
+                            case CkanCatExplorer():
+                                match subcommand:
+                                    case "packages":
+                                        packages = self.explorer.get_package_list()
+                                        rich_log.write(Text(f"Found {len(packages)} packages\n\n", style=Style(color="green", bold=True)))
+                                        rich_log.write(packages)
+                                    case "orgs":
+                                        count, orgs = self.explorer.get_organisation_list()
+                                        rich_log.write(Text(f"Found {count} organizations\n\n", style=Style(color="green", bold=True)))
                                         rich_log.write(orgs)
-                                    else:
-                                        rich_log.write(Text("No organizations found\n", style=Style(color="yellow")))
-                                case _:
-                                    rich_log.write(Text(f"Unknown list command: {subcommand}\n", style=Style(color="yellow")))
-                except Exception as e:
-                    rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
+                                    case _:
+                                        rich_log.write(Text(f"Unknown list command: {subcommand}\n", style=Style(color="yellow")))
+                            case OpenDataSoftCatExplorer():
+                                match subcommand:
+                                    case "datasets":
+                                        datasets = self.explorer.fetch_all_datasets()
+                                        if datasets:
+                                            rich_log.write(Text(f"Found {len(datasets)} datasets\n\n", style=Style(color="green", bold=True)))
+                                            rich_log.write(datasets)
+                                        else:
+                                            rich_log.write(Text("No datasets found\n", style=Style(color="yellow")))
+                                    case _:
+                                        rich_log.write(Text(f"Unknown list command: {subcommand}\n", style=Style(color="yellow")))
+                            case FrenchGouvCatExplorer():
+                                match subcommand:
+                                    case "datasets":
+                                        datasets = self.explorer.get_all_datasets()
+                                        if datasets:
+                                            rich_log.write(Text(f"Found {len(datasets)} datasets\n\n", style=Style(color="green", bold=True)))
+                                            rich_log.write(datasets)
+                                        else:
+                                            rich_log.write(Text("No datasets found\n", style=Style(color="yellow")))
+                                    case "orgs":
+                                        orgs = self.explorer.get_all_orgs()
+                                        if orgs:
+                                            rich_log.write(Text(f"Found {len(orgs)} organizations\n\n", style=Style(color="green", bold=True)))
+                                            rich_log.write(orgs)
+                                        else:
+                                            rich_log.write(Text("No organizations found\n", style=Style(color="yellow")))
+                                    case _:
+                                        rich_log.write(Text(f"Unknown list command: {subcommand}\n", style=Style(color="yellow")))
+                    except Exception as e:
+                        rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
 
-            case "search" if isinstance(self.explorer, CkanCatExplorer):
-                if len(cmd) < 3:
-                    rich_log.write(Text("Please provide a search query and number of rows\n", style=Style(color="yellow")))
-                    return
-                try:
-                    num_rows = int(cmd[2])
-                    results = self.explorer.package_search_condense(cmd[1], num_rows)
-                    if results:
-                        rich_log.write(Text(f"Found {len(results)} matches\n\n", style=Style(color="green", bold=True)))
-                        rich_log.write(results)
-                    else:
-                        rich_log.write(Text("No matching packages found\n", style=Style(color="yellow")))
-                except ValueError:
-                    rich_log.write(Text("Number of rows must be a valid number\n", style=Style(color="red")))
-                except Exception as e:
-                    rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
+                case "search" if isinstance(self.explorer, CkanCatExplorer):
+                    if len(cmd) < 3:
+                        rich_log.write(Text("Please provide a search query and number of rows\n", style=Style(color="yellow")))
+                        return
+                    try:
+                        num_rows = int(cmd[2])
+                        results = self.explorer.package_search_condense(cmd[1], num_rows)
+                        if results:
+                            rich_log.write(Text(f"Found {len(results)} matches\n\n", style=Style(color="green", bold=True)))
+                            rich_log.write(results)
+                        else:
+                            rich_log.write(Text("No matching packages found\n", style=Style(color="yellow")))
+                    except ValueError:
+                        rich_log.write(Text("Number of rows must be a valid number\n", style=Style(color="red")))
+                    except Exception as e:
+                        rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
 
-            case "load":
-                if not self.explorer:
-                    rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
-                    return
+                case "load":
+                    if not self.explorer:
+                        rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
+                        return
 
-                if len(cmd) < 2:
-                    rich_log.write(Text("Please provide the dataset ID\n", style=Style(color="yellow")))
-                    return
+                    if len(cmd) < 2:
+                        rich_log.write(Text("Please provide the dataset ID\n", style=Style(color="yellow")))
+                        return
 
-                dataset_id = cmd[1]
+                    dataset_id = cmd[1]
 
-                try:
-                    match self.explorer:
-                        case CkanCatExplorer():
-                            df = self.load_ckan_dataset(dataset_id)
-                        case OpenDataSoftCatExplorer():
-                            format_type = cmd[2] if len(cmd) > 2 else "csv"
-                            api_key = cmd[3] if len(cmd) > 3 else None
-                            df = self.load_opendatasoft_dataset(dataset_id, format_type, api_key)
-                        case _:
-                            raise ValueError("Unsupported catalog type")
+                    try:
+                        match self.explorer:
+                            case CkanCatExplorer():
+                                df = self.load_ckan_dataset(dataset_id)
+                            case OpenDataSoftCatExplorer():
+                                format_type = cmd[2] if len(cmd) > 2 else "csv"
+                                api_key = cmd[3] if len(cmd) > 3 else None
+                                df = self.load_opendatasoft_dataset(dataset_id, format_type, api_key)
+                            case _:
+                                raise ValueError("Unsupported catalog type")
 
-                    if isinstance(df, str):
-                        rich_log.write(Text(df + "\n", style=Style(color="red")))
-                    else:
-                        rich_log.write(Text("Data Loaded Successfully ✅\n", style=Style(color="green", bold=True)))
-                        rich_log.write("DATA COLUMNS AND DATA TYPES")
-                        rich_log.write(df.columns)
-                        rich_log.write(df.dtypes)
-                        rich_log.write("DATA SAMPLE")
-                        rich_log.write(df.head(10))
-                except Exception as e:
-                    rich_log.write(Text(f"Error loading data: {str(e)}\n", style=Style(color="red")))
+                        if isinstance(df, str):
+                            rich_log.write(Text(df + "\n", style=Style(color="red")))
+                        else:
+                            rich_log.write(Text("Data Loaded Successfully ✅\n", style=Style(color="green", bold=True)))
+                            rich_log.write("DATA COLUMNS AND DATA TYPES")
+                            rich_log.write(df.columns)
+                            rich_log.write(df.dtypes)
+                            rich_log.write("DATA SAMPLE")
+                            rich_log.write(df.head(10))
+                    except Exception as e:
+                        rich_log.write(Text(f"Error loading data: {str(e)}\n", style=Style(color="red")))
 
-            case "package" | "dataset" | "resource":
-                if not self.explorer:
-                    rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
-                    return
+                case "package" | "dataset" | "resource":
+                    if not self.explorer:
+                        rich_log.write(Text("No active connection. Please connect to a catalog first.\n", style=Style(color="yellow")))
+                        return
 
-                if len(cmd) < 3:
-                    rich_log.write(Text(f"Please provide the {command} command and ID\n", style=Style(color="yellow")))
-                    return
+                    if len(cmd) < 3:
+                        rich_log.write(Text(f"Please provide the {command} command and ID\n", style=Style(color="yellow")))
+                        return
 
-                subcommand = cmd[1].lower()
-                identifier = cmd[2]
+                    subcommand = cmd[1].lower()
+                    identifier = cmd[2]
 
-                try:
-                    match self.explorer:
-                        case CkanCatExplorer() if command == "package":
-                            match subcommand:
-                                case "info":
-                                    info = self.explorer.show_package_info(identifier)
-                                    rich_log.write(info)
-                                case _:
-                                    rich_log.write(Text(f"Unknown package command: {subcommand}\n", style=Style(color="yellow")))
-                        case OpenDataSoftCatExplorer() if command == "dataset":
-                            match subcommand:
-                                case "info":
-                                    info = self.explorer.show_dataset_info(identifier)
-                                    rich_log.write(info)
-                                case "export":
-                                    options = self.explorer.show_dataset_export_options(identifier)
-                                    rich_log.write(options)
-                                case _:
-                                    rich_log.write(Text(f"Unknown dataset command: {subcommand}\n", style=Style(color="yellow")))
-                        case FrenchGouvCatExplorer():
-                            match command, subcommand:
-                                case "dataset", "meta":
-                                    meta = self.explorer.get_dataset_meta(identifier)
-                                    rich_log.write(meta)
-                                case "resource", "meta":
-                                    if len(cmd) < 4:
-                                        rich_log.write(Text("Please provide both dataset_id and resource_id\n", style=Style(color="yellow")))
-                                        return
-                                    meta = self.explorer.get_dataset_resource_export(identifier, cmd[3])
-                                    rich_log.write(meta)
-                                case _:
-                                    rich_log.write(Text(f"Unknown {command} command: {subcommand}\n", style=Style(color="yellow")))
-                except Exception as e:
-                    rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
+                    try:
+                        match self.explorer:
+                            case CkanCatExplorer() if command == "package":
+                                match subcommand:
+                                    case "info":
+                                        info = self.explorer.show_package_info(identifier)
+                                        rich_log.write(info)
+                                    case _:
+                                        rich_log.write(Text(f"Unknown package command: {subcommand}\n", style=Style(color="yellow")))
+                            case OpenDataSoftCatExplorer() if command == "dataset":
+                                match subcommand:
+                                    case "info":
+                                        info = self.explorer.show_dataset_info(identifier)
+                                        rich_log.write(info)
+                                    case "export":
+                                        options = self.explorer.show_dataset_export_options(identifier)
+                                        rich_log.write(options)
+                                    case _:
+                                        rich_log.write(Text(f"Unknown dataset command: {subcommand}\n", style=Style(color="yellow")))
+                            case FrenchGouvCatExplorer():
+                                match command, subcommand:
+                                    case "dataset", "meta":
+                                        meta = self.explorer.get_dataset_meta(identifier)
+                                        rich_log.write(meta)
+                                    case "resource", "meta":
+                                        input = self.explorer.get_dataset_meta(identifier)
+                                        meta = self.explorer.get_dataset_resource_meta(input)
+                                        rich_log.write(meta)
+                                    case _:
+                                        rich_log.write(Text(f"Unknown {command} command: {subcommand}\n", style=Style(color="yellow")))
+                            case "quit":
+                                if self.session:
+                                    self.session.close_session()
+                                self.exit()
+                    except Exception as e:
+                        rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
+        except Exception as e:
+            rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
 
-            case "quit":
-                if self.session:
-                    self.session.close_session()
-                self.exit()
 
 
 if __name__ == "__main__":
