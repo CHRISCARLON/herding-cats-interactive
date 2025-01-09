@@ -1,10 +1,5 @@
 # Interactive Terminal Session for HerdingCats 🐈‍⬛
 
-
-             /\_/\
-            ( o.o )
-
-
 ## Getting Started
 
 After launching the application, you'll see a welcome message and a couple of interactive options. Here's how you can begin using InteractiveCats:
