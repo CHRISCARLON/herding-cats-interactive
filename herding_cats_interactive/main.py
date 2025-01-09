@@ -1,4 +1,5 @@
 import asyncio
+import os
 from textual.app import App
 from textual.widgets import Header, Input, Footer, Button, RichLog
 from textual.containers import Container, Horizontal
@@ -371,6 +372,10 @@ class InteractiveCats(App):
             return "Not connected to a CKAN explorer. Use connect() first."
         if not isinstance(self.loader, OpenDataSoftResourceLoader):
             return "Not connected to an OpenDataSoft catalog"
+
+        if api_key is None:
+            api_key = os.getenv("OPENDATASOFT_API_KEY")
+
         try:
             resource_data = self.explorer.show_dataset_export_options(dataset_id)
             if not resource_data:
