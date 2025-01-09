@@ -1,5 +1,7 @@
 # Interactive Terminal Session for HerdingCats 🐈‍⬛
 
+<img width="1114" alt="Screenshot 2025-01-09 at 20 41 14" src="https://github.com/user-attachments/assets/c050752b-3a30-4eb7-af82-c796e5c4ae81" />
+
 ## Getting Started
 
 After launching the application, you'll see a welcome message along with several interactive options.
