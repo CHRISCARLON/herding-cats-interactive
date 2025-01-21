@@ -346,7 +346,7 @@ class InteractiveCats(App):
         if self.logger_handler:
             self.logger_handler.clear()
 
-    def load_ckan_dataset(self, dataset_id):
+    def load_ckan_dataset(self, dataset_id, format_type):
         """Load a CKAN dataset into a Polars DataFrame"""
         if not isinstance(self.explorer, CkanCatExplorer):
             return "Not connected to a CKAN explorer. Use connect() first."
@@ -359,7 +359,7 @@ class InteractiveCats(App):
             resource_data = self.explorer.extract_resource_url(dataset)
             if not resource_data:
                 raise ValueError(f"No downloadable resources found for dataset: {dataset_id}")
-            return self.loader.polars_data_loader(resource_data)
+            return self.loader.polars_data_loader(resource_data, format_type)
         except ValueError as ve:
             return str(ve)
         except Exception as e:
@@ -614,7 +614,8 @@ class InteractiveCats(App):
                     try:
                         match self.explorer:
                             case CkanCatExplorer():
-                                df = self.load_ckan_dataset(dataset_id)
+                                format_type = cmd[2] if len(cmd) > 2 else None
+                                df = self.load_ckan_dataset(dataset_id, format_type)
                             case OpenDataSoftCatExplorer():
                                 format_type = cmd[2] if len(cmd) > 2 else "csv"
                                 api_key = cmd[3] if len(cmd) > 3 else None
