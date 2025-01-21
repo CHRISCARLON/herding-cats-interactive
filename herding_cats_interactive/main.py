@@ -184,7 +184,7 @@ class InteractiveCats(App):
 
         welcome_text = Text(cat_art, style=Style(color="blue", bold=True))
         welcome_text.append("Welcome to Interactive Cats\n \n", style=Style(color="green", bold=True))
-        welcome_text.append("        Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...", style=Style(color="white"))
+        welcome_text.append("        Use 'connect <catalog>' to start, or click 'Show Available Catalogs' to see options...", style=Style(color="white"))
         rich_log.write(welcome_text)
 
     def reset_app(self):
