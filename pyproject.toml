@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "herding-cats-shell"
+name = "herding-cats-interactive"
 version = "0.1.0"
 description = "Interactive shell interface for HerdingCats library"
 authors = ["Your Name <your.email@example.com>"]
@@ -27,4 +27,4 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-herding-cats-shell = "herding_cats_shell.shell:main"
+herding-cats-interactive = "herding_cats_interactive.__main__:main"
