@@ -11,7 +11,7 @@ from HerdingCats.endpoints.api_endpoints import (
     FrenchGouvCatalogue
 )
 from HerdingCats.explorer.cat_explore import CkanCatExplorer, OpenDataSoftCatExplorer, FrenchGouvCatExplorer
-from HerdingCats.data_loader.data_loader import CkanCatResourceLoader, OpenDataSoftResourceLoader
+from HerdingCats.data_loader.data_loader import CkanCatResourceLoader, OpenDataSoftResourceLoader, FrenchGouvResourceLoader
 
 from loguru import logger
 from rich.text import Text
@@ -175,8 +175,8 @@ class InteractiveCats(App):
         logger.add(self.logger_handler, format="{message}")
 
         # Welcome message with rich formatting
-        cat_art = """
-         /\_/\\
+        cat_art = r"""
+         /\_/\
         ( o.o )
         """
 
@@ -215,8 +215,7 @@ class InteractiveCats(App):
                 loader = OpenDataSoftResourceLoader()
             case CatalogueType.GOUV_FR:
                 explorer = FrenchGouvCatExplorer(self.session)
-                # Add the appropriate loader for FrenchGouv if available
-                # loader = FrenchGouvResourceLoader()
+                loader = FrenchGouvResourceLoader()
 
         return explorer, loader
 
@@ -333,7 +332,7 @@ class InteractiveCats(App):
                 output.append("Use 'show catalogs' to see available catalogs, then connect to one:\n",
                             style=Style(color="white"))
                 _add_examples([
-                    ("connect london", "Connect to the London Data Store"),
+                    ("connect london-datastore", "Connect to the London Data Store"),
                     ("connect uk-power-networks", "Connect to the UKPN Data Store")
                 ])
 
@@ -369,7 +368,7 @@ class InteractiveCats(App):
     def load_opendatasoft_dataset(self, dataset_id, format_type, api_key=None):
         """Load an OpenDataSoft dataset into a Polars DataFrame"""
         if not isinstance(self.explorer, OpenDataSoftCatExplorer):
-            return "Not connected to a CKAN explorer. Use connect() first."
+            return "Not connected to a OpenDataSoft explorer. Use connect() first."
         if not isinstance(self.loader, OpenDataSoftResourceLoader):
             return "Not connected to an OpenDataSoft catalog"
 
@@ -381,6 +380,24 @@ class InteractiveCats(App):
             if not resource_data:
                 raise ValueError(f"No dataset found with ID: {dataset_id}")
             return self.loader.polars_data_loader(resource_data, format_type, api_key=api_key)
+        except ValueError as ve:
+            return str(ve)
+        except Exception as e:
+            raise e
+
+    def load_french_gouv_dataset(self, dataset_id, format_type):
+        """Load an French Government dataset into a Polars DataFrame"""
+        if not isinstance(self.explorer, FrenchGouvCatExplorer):
+            return "Not connected to French Government explorer. Use connect() first."
+        if not isinstance(self.loader, FrenchGouvResourceLoader):
+            return "Not connected to French Government catalog"
+
+        try:
+            resource_data = self.explorer.get_dataset_meta(dataset_id)
+            data_to_load = self.explorer.get_dataset_resource_meta(resource_data)
+            if not data_to_load:
+                raise ValueError(f"No dataset found with ID: {dataset_id}")
+            return self.loader.polars_data_loader(data_to_load, format_type, api_key=None)
         except ValueError as ve:
             return str(ve)
         except Exception as e:
@@ -402,7 +419,8 @@ class InteractiveCats(App):
             self.clear_log()
             rich_log.write(self.format_commands_list())
 
-    # TODO could we have this cycle until the data is loaded instead of needing to use a range when you call it?
+    # TODO Have this cycle until the data is loaded instead of needing to use a range when you call it
+    # Might need to implement async for this to work
     async def compose_loading_dots(self, rich_log: RichLog, command: str):
         """Display loading dots animation."""
         dots = ["   ", ".  ", ".. ", "..."]
@@ -601,6 +619,9 @@ class InteractiveCats(App):
                                 format_type = cmd[2] if len(cmd) > 2 else "csv"
                                 api_key = cmd[3] if len(cmd) > 3 else None
                                 df = self.load_opendatasoft_dataset(dataset_id, format_type, api_key)
+                            case FrenchGouvCatExplorer():
+                                format_type = cmd[2] if len(cmd) > 2 else "csv"
+                                df = self.load_french_gouv_dataset(dataset_id, format_type)
                             case _:
                                 raise ValueError("Unsupported catalog type")
 
