@@ -1,5 +1,7 @@
 import asyncio
 import os
+import time
+
 from textual.app import App
 from textual.widgets import Header, Input, Footer, Button, RichLog
 from textual.containers import Container, Horizontal
@@ -156,7 +158,7 @@ class InteractiveCats(App):
             ),
             RichLog(highlight=True, markup=True)
         )
-        yield Input(placeholder="Enter command (connect <catalog>, close, quit)")
+        yield Input(placeholder="Enter command (connect <catalog>, close, quit, home)")
         yield Footer()
 
     def on_mount(self):
@@ -183,6 +185,40 @@ class InteractiveCats(App):
         welcome_text = Text(cat_art, style=Style(color="blue", bold=True))
         welcome_text.append("Welcome to Interactive Cats\n \n", style=Style(color="green", bold=True))
         welcome_text.append("        Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...", style=Style(color="white"))
+        rich_log.write(welcome_text)
+
+    def reset_app(self):
+        """Reset the app to its initial state."""
+        # Close any existing session
+        if self.session:
+            self.session.close_session()
+            self.session = None
+
+        # Reset all variables to initial state
+        self.explorer = None
+        self.loader = None
+
+        # Remove the connected catalog button if it exists
+        if self.active_catalog_button:
+            self.active_catalog_button.remove()
+            self.active_catalog_button = None
+
+        # Clear the input
+        self.query_one(Input).value = ""
+
+        # Clear the log
+        self.clear_log()
+
+        # Show welcome message again
+        rich_log = self.query_one(RichLog)
+        cat_art = r"""
+         /\_/\
+        ( o.o )
+        """
+        welcome_text = Text(cat_art, style=Style(color="blue", bold=True))
+        welcome_text.append("Welcome to Interactive Cats\n \n", style=Style(color="green", bold=True))
+        welcome_text.append("        Use 'connect <catalog>' to start, or click 'Show Available Catalogs to see options...",
+                            style=Style(color="white"))
         rich_log.write(welcome_text)
 
     async def _check_site_health(self) -> None:
@@ -287,7 +323,7 @@ class InteractiveCats(App):
                     ("package info <name>", "Show detailed information about a specific package"),
                     ("search <query> <rows>", "Search packages with query and limit results"),
                     ("list orgs", "Show all organizations in the catalog"),
-                    ("load <id>", "Load a data sample into a DataFrame")
+                    ("load <id> <format>", "Load a data sample into a DataFrame with an optional format specified")
                 ], "CKAN Commands:")
 
                 _add_examples([
@@ -319,7 +355,8 @@ class InteractiveCats(App):
                     ("list datasets", "Show all available datasets"),
                     ("dataset meta <dataset_id>", "Show metadata for a specific dataset"),
                     ("resource meta <dataset_id>", "Show metadata for a specific resource"),
-                    ("list orgs", "Show all organizations in the catalog")
+                    ("list orgs", "Show all organizations in the catalog"),
+                    ("load <id> <format>", "Load a data sample into a DataFrame.")
                 ], "French Government Commands:")
 
                 _add_examples([
@@ -467,6 +504,14 @@ class InteractiveCats(App):
 
         try:
             match command:
+                case "home":
+                    self.reset_app()
+            match command:
+                case "quit":
+                    if self.session:
+                        self.session.close_session()
+                    self.exit()
+
                 case "connect":
                     if len(cmd) < 2:
                         rich_log.write(Text("Please specify a catalog to connect to\n", style=Style(color="yellow")))
@@ -524,8 +569,12 @@ class InteractiveCats(App):
                         # Show informative close message
                         rich_log.write(Text(f"Connection Closed: {catalog_name} ({catalog_type})\n",
                                         style=Style(color="green")))
+                        self.query_one(Input).value = ""
+                        self.set_timer(1, self.clear_log)
                     else:
                         rich_log.write(Text("No active connection\n", style=Style(color="yellow")))
+                        self.query_one(Input).value = ""
+                        self.set_timer(1, self.clear_log)
 
                 case "list":
                     if not self.explorer:
@@ -680,16 +729,10 @@ class InteractiveCats(App):
                                         rich_log.write(meta)
                                     case _:
                                         rich_log.write(Text(f"Unknown {command} command: {subcommand}\n", style=Style(color="yellow")))
-                            case "quit":
-                                if self.session:
-                                    self.session.close_session()
-                                self.exit()
                     except Exception as e:
                         rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
         except Exception as e:
             rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
-
-
 
 if __name__ == "__main__":
     app = InteractiveCats()
