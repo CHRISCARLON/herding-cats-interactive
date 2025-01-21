@@ -14,13 +14,34 @@ APP_CSS = """
         border: $primary;
     }
 
-    RichLog {
+    #main-content {
         height: 1fr;
-        min-height: 25;
+    }
+
+    #rich-log {
+        width: 60%;
+        height: 100%;
         border: solid $panel;
+        margin: 1;
+        box-sizing: border-box;
         background: $surface;
         color: $text;
+    }
+
+    #rich-log:focus {
+    border: outer $primary-darken-2;
+    }
+
+    #data-table {
+        width: 40%;
+        height: 100%;
+        border: solid $panel;
         margin: 1;
+        box-sizing: border-box;
+    }
+
+    #data-table:focus {
+    border: outer $primary-darken-2;
     }
 
     Screen {

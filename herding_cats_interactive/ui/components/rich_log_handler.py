@@ -3,7 +3,7 @@ from rich.style import Style
 from textual.widgets import RichLog
 
 class TextualRichLogHandler:
-    """Custom logger handler that sends output to a Textual RichLog widget."""
+    """Log handler that sends output to a Textual RichLog widget."""
     
     def __init__(self, log_display: RichLog):
         self.log_display = log_display
