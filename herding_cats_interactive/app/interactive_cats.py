@@ -1,6 +1,7 @@
 from textual.app import App
 from textual.widgets import Header, Input, Footer, RichLog, DataTable, Button
 from textual.containers import Container, Horizontal
+
 from rich.text import Text
 from rich.style import Style
 from loguru import logger
@@ -16,8 +17,6 @@ from herding_cats_interactive.utils.constants import catalogues
 from HerdingCats.session.cat_session import CatSession, CatalogueType
 from HerdingCats.explorer.cat_explore import CkanCatExplorer, OpenDataSoftCatExplorer, FrenchGouvCatExplorer
 from HerdingCats.data_loader.data_loader import CkanCatResourceLoader, OpenDataSoftResourceLoader, FrenchGouvResourceLoader
-
-
 
 class InteractiveCats(App):
     """Interactive terminal application for the HerdingCats library."""

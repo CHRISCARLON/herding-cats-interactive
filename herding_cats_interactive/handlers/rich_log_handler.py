@@ -1,6 +1,8 @@
 from rich.text import Text
 from rich.style import Style
+
 from textual.widgets import RichLog
+
 from typing import Any
 
 class TextualRichLogHandler:

@@ -1,8 +1,11 @@
 from textual.widgets import Button
 from textual.message import Message
+
 from rich.text import Text
 from rich.style import Style
+
 from typing import Optional
+
 from HerdingCats.explorer.cat_explore import CkanCatExplorer, OpenDataSoftCatExplorer, FrenchGouvCatExplorer
 
 class CommandButton(Button):

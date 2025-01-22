@@ -1,4 +1,5 @@
 from textual.widgets import RichLog, DataTable, Input
+
 from herding_cats_interactive.ui.components.catalogue_button import CatalogButton
 from herding_cats_interactive.ui.components.command_button import CommandButton
 

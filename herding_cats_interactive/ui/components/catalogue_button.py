@@ -1,7 +1,9 @@
 from textual.widgets import Button
 from textual.message import Message
+
 from rich.text import Text
 from rich.style import Style
+
 from typing import Dict, Tuple, Any
 
 class CatalogButton(Button):
