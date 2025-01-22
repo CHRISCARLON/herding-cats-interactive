@@ -24,6 +24,11 @@ APP_CSS = """
         border: $success-darken-2 !important;
     }
 
+    #button-container Button.no-connection-status {
+        background: grey;
+        border: none;
+    }
+
     #main-content {
         height: 1fr;
     }
