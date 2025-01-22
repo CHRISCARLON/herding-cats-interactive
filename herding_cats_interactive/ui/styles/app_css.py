@@ -14,6 +14,16 @@ APP_CSS = """
         border: $primary;
     }
 
+    #button-container Button.connected-button {
+        background: $success-darken-2 !important;
+        border: $success-darken-2 !important;
+        color: $text;
+    }
+
+    #button-container Button.connected-button:focus {
+        border: $success-darken-2 !important;
+    }
+
     #main-content {
         height: 1fr;
     }

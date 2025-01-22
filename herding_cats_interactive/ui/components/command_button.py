@@ -19,6 +19,10 @@ class CommandButton(Button):
         super().__init__("Show Commands", **kwargs)
         self.explorer = explorer
 
+    def update_explorer(self, explorer: Optional[CkanCatExplorer | OpenDataSoftCatExplorer | FrenchGouvCatExplorer] = None) -> None:
+        """Update the explorer and refresh the button's command list."""
+        self.explorer = explorer
+
     def _format_commands_list(self) -> Text:
         """Format the available commands list with rich text formatting."""
         output = Text()
@@ -100,7 +104,7 @@ class CommandButton(Button):
                 ])
 
             case None:
-                output.append("\nConnect First:\n", style=Style(color="yellow", bold=True))
+                output.append("\nYou Are Not Connected to a Catalog:\n", style=Style(color="yellow", bold=True))
                 output.append("Use 'show catalogs' to see available catalogs, then connect to one:\n",
                             style=Style(color="white"))
                 _add_examples([
