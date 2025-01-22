@@ -29,8 +29,14 @@ APP_CSS = """
         border: none;
     }
 
+    #button-container Button.hot-keys {
+        background: $secondary;
+        color: black;
+        border: none;
+    }
+
     #main-content {
-        height: 1fr;
+        height: 60%;  /* Main content takes 70% */
     }
 
     #rich-log {
@@ -44,6 +50,20 @@ APP_CSS = """
     }
 
     #rich-log:focus {
+    border: outer $primary-darken-2;
+    }
+
+    #rich-log-2 {
+        width: 100%;
+        height: 25%;
+        border: solid $panel;
+        margin: 1;
+        box-sizing: border-box;
+        background: $surface;
+        color: $text;
+    }
+
+    #rich-log-2:focus {
     border: outer $primary-darken-2;
     }
 

@@ -53,6 +53,8 @@ class InteractiveCats(App):
             Horizontal(
                 CatalogButton(self.catalogs),
                 CommandButton(self.explorer),
+                Button("Hot Key 1", id="hot-key-1",  classes="hot-keys"),
+                Button("Hot Key 2", id="hot-key-2",  classes="hot-keys"),
                 Button("Not Connected", id="no-connection-status", classes="no-connection-status"),
                 id="button-container"
             ),
@@ -60,7 +62,9 @@ class InteractiveCats(App):
                 RichLog(highlight=True, markup=True, id="rich-log"),
                 DataTable(id="data-table"),
                 id="main-content"
-            )
+            ),
+            RichLog(highlight=True, markup=True, id="rich-log-2"),
+            id="secondary-content"
         )
         yield Input(placeholder="Enter command (connect <catalog> to start)")
         yield Footer()
