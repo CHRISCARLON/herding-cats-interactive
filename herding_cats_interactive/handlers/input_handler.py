@@ -1,17 +1,17 @@
 import asyncio
-from textual.widgets import RichLog, Input
+import os
+
+from textual.widgets import RichLog, Input, DataTable
 from rich.text import Text
 from rich.style import Style
 
+from HerdingCats.session.cat_session import CatSession, CatalogueType
+from HerdingCats.explorer.cat_explore import CkanCatExplorer, OpenDataSoftCatExplorer, FrenchGouvCatExplorer
+from HerdingCats.data_loader.data_loader import CkanCatResourceLoader, OpenDataSoftResourceLoader, FrenchGouvResourceLoader
+
 class InputHandler:
     """
-    Input Handler acts like a traffic controller - routing commands to the right operations
-    but not executing the operations itself.
-    
-    +-------------+     +--------------+     +------------------+
-    |   Input     | --> |   Handler    | --> |  App Operations  |
-    | (Commands)  |     | (Router/UI)  |     | (Business Logic) |
-    +-------------+     +--------------+     +------------------+
+    Input Handler
     """
 
     def __init__(self, app):
@@ -39,7 +39,12 @@ class InputHandler:
         command_handlers = {
             "connect": self._handle_connect,
             "close": self._handle_close,
-            "quit": self._handle_quit
+            "quit": self._handle_quit,
+            "list": self._handle_list,
+            "package": self._handle_info,
+            "dataset": self._handle_info,
+            "resource": self._handle_info,
+            "load": self._handle_load 
         }
 
         handler = command_handlers.get(command)
@@ -62,6 +67,63 @@ class InputHandler:
             self.app.clear_log()
             self.rich_log.write(text)
             await asyncio.sleep(0.1)
+
+    def load_ckan_dataset(self, dataset_id, format_type):
+        """Load a CKAN dataset into a Polars DataFrame"""
+        if not isinstance(self.app.explorer, CkanCatExplorer):
+            return "Not connected to a CKAN explorer. Use connect() first."
+        if not isinstance(self.app.loader, CkanCatResourceLoader):
+            return "Not connected to a CKAN catalog"
+        try:
+            dataset = self.app.explorer.show_package_info(dataset_id)
+            if not dataset:
+                raise ValueError(f"No dataset found with ID: {dataset_id}")
+            resource_data = self.app.explorer.extract_resource_url(dataset)
+            if not resource_data:
+                raise ValueError(f"No downloadable resources found for dataset: {dataset_id}")
+            return self.app.loader.polars_data_loader(resource_data, format_type)
+        except ValueError as ve:
+            return str(ve)
+        except Exception as e:
+            raise e
+
+    def load_opendatasoft_dataset(self, dataset_id, format_type, api_key=None):
+        """Load an OpenDataSoft dataset into a Polars DataFrame"""
+        if not isinstance(self.app.explorer, OpenDataSoftCatExplorer):
+            return "Not connected to a OpenDataSoft explorer. Use connect() first."
+        if not isinstance(self.app.loader, OpenDataSoftResourceLoader):
+            return "Not connected to an OpenDataSoft catalog"
+
+        if api_key is None:
+            api_key = os.getenv("OPENDATASOFT_API_KEY")
+
+        try:
+            resource_data = self.app.explorer.show_dataset_export_options(dataset_id)
+            if not resource_data:
+                raise ValueError(f"No dataset found with ID: {dataset_id}")
+            return self.app.loader.polars_data_loader(resource_data, format_type, api_key=api_key)
+        except ValueError as ve:
+            return str(ve)
+        except Exception as e:
+            raise e
+
+    def load_french_gouv_dataset(self, dataset_id, format_type):
+        """Load an French Government dataset into a Polars DataFrame"""
+        if not isinstance(self.app.explorer, FrenchGouvCatExplorer):
+            return "Not connected to French Government explorer. Use connect() first."
+        if not isinstance(self.app.loader, FrenchGouvResourceLoader):
+            return "Not connected to French Government catalog"
+
+        try:
+            resource_data = self.app.explorer.get_dataset_meta(dataset_id)
+            data_to_load = self.app.explorer.get_dataset_resource_meta(resource_data)
+            if not data_to_load:
+                raise ValueError(f"No dataset found with ID: {dataset_id}")
+            return self.app.loader.polars_data_loader(data_to_load, format_type, api_key=None)
+        except ValueError as ve:
+            return str(ve)
+        except Exception as e:
+            raise e
 
     async def _handle_connect(self, cmd: list) -> None:
         """Handle the connect command."""
@@ -111,6 +173,9 @@ class InputHandler:
             self.app.active_catalog_button.remove()
             self.app.active_catalog_button = None
 
+        if self.app.data_table:
+            self.app.data_table.clear(columns=True)
+
         # Show close message
         self.rich_log.write(Text(f"Connection Closed: {message} ({catalog_type})\n",
                             style=Style(color="green")))
@@ -123,3 +188,209 @@ class InputHandler:
             self.app.session.close_session()
         self.app.exit()
 
+    async def _handle_list(self, cmd: list) -> None:
+        """Handle the list command for different catalog types."""
+        if not self.app.explorer:
+            self.rich_log.write(Text("No active connection. Please connect to a catalog first.\n", 
+                                style=Style(color="yellow")))
+            return
+
+        if len(cmd) < 2:
+            self.rich_log.write(Text("Please specify what to list (packages, datasets, orgs)\n", 
+                                style=Style(color="yellow")))
+            return
+
+        subcommand = cmd[1].lower()
+        try:
+            match self.app.explorer:
+                case CkanCatExplorer():
+                    match subcommand:
+                        case "packages":
+                            packages = self.app.explorer.get_package_list()
+                            self.rich_log.write(Text(f"Found {len(packages)} packages\n\n", 
+                                                style=Style(color="green", bold=True)))
+                            packages_formatted = self.app.logger_handler.write_structured_data(packages)
+                            self.rich_log.write(packages_formatted)
+                        case "orgs":
+                            count, orgs = self.app.explorer.get_organisation_list()
+                            self.rich_log.write(Text(f"Found {count} organizations\n\n", 
+                                                style=Style(color="green", bold=True)))
+                            orgs_formatted = self.app.logger_handler.write_structured_data(orgs)
+                            self.rich_log.write(orgs_formatted)
+                        case _:
+                            self.rich_log.write(Text(f"Unknown list command: {subcommand}\n", 
+                                                style=Style(color="yellow")))
+                
+                case OpenDataSoftCatExplorer():
+                    match subcommand:
+                        case "datasets":
+                            datasets = self.app.explorer.fetch_all_datasets()
+                            if datasets:
+                                self.rich_log.write(Text(f"Found {len(datasets)} datasets\n\n", 
+                                                    style=Style(color="green", bold=True)))
+                                datasets_formatted = self.app.logger_handler.write_structured_data(datasets)
+                                self.rich_log.write(datasets_formatted)
+                            else:
+                                self.rich_log.write(Text("No datasets found\n", 
+                                                    style=Style(color="yellow")))
+                        case _:
+                            self.rich_log.write(Text(f"Unknown list command: {subcommand}\n", 
+                                                style=Style(color="yellow")))
+                
+                case FrenchGouvCatExplorer():
+                    match subcommand:
+                        case "datasets":
+                            datasets = self.app.explorer.get_all_datasets()
+                            if datasets:
+                                self.rich_log.write(Text(f"Found {len(datasets)} datasets\n\n", 
+                                                    style=Style(color="green", bold=True)))
+                                datasets_formatted = self.app.logger_handler.write_structured_data(datasets)
+                                self.rich_log.write(datasets_formatted)
+                            else:
+                                self.rich_log.write(Text("No datasets found\n", 
+                                                    style=Style(color="yellow")))
+                        case "orgs":
+                            orgs = self.app.explorer.get_all_orgs()
+                            if orgs:
+                                self.rich_log.write(Text(f"Found {len(orgs)} organizations\n\n", 
+                                                    style=Style(color="green", bold=True)))
+                                orgs_formatted = self.app.logger_handler.write_structured_data(orgs)
+                                self.rich_log.write(orgs_formatted)
+                            else:
+                                self.rich_log.write(Text("No organizations found\n", 
+                                                    style=Style(color="yellow")))
+                        case _:
+                            self.rich_log.write(Text(f"Unknown list command: {subcommand}\n", 
+                                                style=Style(color="yellow")))
+        
+        except Exception as e:
+            self.rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
+
+    async def _handle_info(self, cmd: list) -> None:
+        """Handle info commands for different catalog types."""
+        if not self.app.explorer:
+            self.rich_log.write(Text("No active connection. Please connect to a catalog first.\n", 
+                                style=Style(color="yellow")))
+            return
+
+        if len(cmd) < 3:
+            self.rich_log.write(Text("Please provide both command type (package/dataset/resource) and ID\n", 
+                                style=Style(color="yellow")))
+            return
+
+        command = cmd[0].lower() 
+        subcommand = cmd[1].lower()  
+        identifier = cmd[2]
+
+        try:
+            match self.app.explorer:
+                case CkanCatExplorer() if command == "package":
+                    match subcommand:
+                        case "info":
+                            info = self.app.explorer.show_package_info(identifier)
+                            info_formatted = self.app.logger_handler.write_structured_data(info)
+                            self.rich_log.write(info_formatted)
+                        case _:
+                            self.rich_log.write(Text(f"Unknown package command: {subcommand}\n", 
+                                                style=Style(color="yellow")))
+                
+                case OpenDataSoftCatExplorer() if command == "dataset":
+                    match subcommand:
+                        case "info":
+                            info = self.app.explorer.show_dataset_info(identifier)
+                            info_formatted = self.app.logger_handler.write_structured_data(info)
+                            self.rich_log.write(info_formatted)
+                        case "export":
+                            options = self.app.explorer.show_dataset_export_options(identifier)
+                            options_formatted = self.app.logger_handler.write_structured_data(options)
+                            self.rich_log.write(options_formatted)
+                        case _:
+                            self.rich_log.write(Text(f"Unknown dataset command: {subcommand}\n", 
+                                                style=Style(color="yellow")))
+                
+                case FrenchGouvCatExplorer():
+                    match command, subcommand:
+                        case "dataset", "meta":
+                            meta = self.app.explorer.get_dataset_meta(identifier)
+                            meta_formatted = self.app.logger_handler.write_structured_data(meta)
+                            self.rich_log.write(meta_formatted)
+                        case "resource", "meta":
+                            input_meta = self.app.explorer.get_dataset_meta(identifier)
+                            meta = self.app.explorer.get_dataset_resource_meta(input_meta)
+                            meta_formatted = self.app.logger_handler.write_structured_data(meta)
+                            self.rich_log.write(meta_formatted)
+                        case _:
+                            self.rich_log.write(Text(f"Unknown {command} command: {subcommand}\n", 
+                                                style=Style(color="yellow")))
+                
+                case _:
+                    self.rich_log.write(Text(f"Current explorer doesn't support {command} info commands\n", 
+                                        style=Style(color="yellow")))
+        
+        except Exception as e:
+            self.rich_log.write(Text(f"Error: {str(e)}\n", style=Style(color="red")))
+
+    async def _handle_load(self, cmd: list) -> None:
+        """Handle the load command for different catalog types."""
+        if not self.app.explorer:
+            self.rich_log.write(Text("No active connection. Please connect to a catalog first.\n", 
+                                style=Style(color="yellow")))
+            return
+
+        if len(cmd) < 2:
+            self.rich_log.write(Text("Please provide the dataset ID\n", 
+                                style=Style(color="yellow")))
+            return
+
+        dataset_id = cmd[1]
+
+        try:
+            # Load data based on explorer type
+            df = None
+            match self.app.explorer:
+                case CkanCatExplorer():
+                    format_type = cmd[2] if len(cmd) > 2 else None
+                    df = self.load_ckan_dataset(dataset_id, format_type)
+                case OpenDataSoftCatExplorer():
+                    format_type = cmd[2] if len(cmd) > 2 else "csv"
+                    api_key = cmd[3] if len(cmd) > 3 else None
+                    df = self.load_opendatasoft_dataset(dataset_id, format_type, api_key)
+                case FrenchGouvCatExplorer():
+                    format_type = cmd[2] if len(cmd) > 2 else "csv"
+                    df = self.load_french_gouv_dataset(dataset_id, format_type)
+                case _:
+                    raise ValueError("Unsupported catalog type")
+
+            if isinstance(df, str):
+                # Handle error message
+                self.rich_log.write(Text(df + "\n", style=Style(color="red")))
+                return
+
+            # Display success message and metadata in RichLog
+            self.rich_log.write(Text("Data Loaded Successfully ✅\n", 
+                                style=Style(color="green", bold=True)))
+            self.rich_log.write(Text("\nDATA COLUMNS AND DATA TYPES\n", 
+                                style=Style(color="cyan", bold=True)))
+            
+            # Format column info
+            for col, dtype in zip(df.columns, df.dtypes):
+                self.rich_log.write(Text(f"{col}: {dtype}\n", 
+                                style=Style(color="white")))
+
+            # Update DataTable
+            # Clear existing data
+            self.app.data_table.clear()
+
+            # Add columns
+            self.app.data_table.add_columns(*[str(col) for col in df.columns])
+            
+            # Add rows - using Polars row iteration
+            for row in df.head(100).iter_rows():
+                self.app.data_table.add_row(*[str(val) for val in row])
+
+            # Focus the data table
+            self.app.data_table.focus()
+
+        except Exception as e:
+            self.rich_log.write(Text(f"Error loading data: {str(e)}\n", 
+                                style=Style(color="red")))

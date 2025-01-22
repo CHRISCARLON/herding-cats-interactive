@@ -75,7 +75,7 @@ class InteractiveCats(App):
         self.logger_handler = TextualRichLogHandler(rich_log)
 
         # Set up Data Table
-        self.query_one(DataTable)
+        self.data_table = self.query_one(DataTable)
 
         # Set up binding handler    
         self.binding_handler = BindingHandler(self)
@@ -96,11 +96,13 @@ class InteractiveCats(App):
         if hasattr(self, 'session') and self.session:
             self.session.close_session()
             self.session = None
-
+        
+        if self.data_table:
+            self.data_table.clear(columns=True)
         # Reset all variables to initial state
         self.explorer = None
         self.loader = None
-
+        
         # Remove the connected catalog button if it exists
         if hasattr(self, 'active_catalog_button') and self.active_catalog_button:
             self.active_catalog_button.remove()
@@ -218,6 +220,18 @@ class InteractiveCats(App):
             case CatalogueType.GOUV_FR:
                 return FrenchGouvCatExplorer(self.session), FrenchGouvResourceLoader()
 
+    async def _check_site_health(self) -> None:
+        """Check site health."""
+        if not self.explorer:
+            return
+        try:
+            if isinstance(self.explorer, (CkanCatExplorer, OpenDataSoftCatExplorer)):
+                self.explorer.check_site_health()
+            elif isinstance(self.explorer, FrenchGouvCatExplorer):
+                self.explorer.check_health_check()
+        except Exception as e:
+            logger.error(f"Error checking site health: {str(e)}")
+
     async def connect_to_catalog(self, catalog: str):
         """Core operation to connect to a catalog."""
         if catalog not in self.catalogs:
@@ -228,6 +242,7 @@ class InteractiveCats(App):
             self.session = CatSession(catalog_enum)
             self.session.start_session()
             self.explorer, self.loader = await self.create_explorer()
+            await self._check_site_health()
 
             command_button = self.query_one(CommandButton)
             command_button.update_explorer(self.explorer)
