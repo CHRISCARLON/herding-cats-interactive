@@ -1,6 +1,5 @@
 import asyncio
 import os
-import time
 
 from textual.app import App
 from textual.widgets import Header, Input, Footer, Button, RichLog

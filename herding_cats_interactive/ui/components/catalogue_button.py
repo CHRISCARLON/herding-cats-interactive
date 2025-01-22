@@ -1,3 +1,4 @@
+from textual.events import Key
 from textual.widgets import Button
 from textual.message import Message
 from rich.text import Text
