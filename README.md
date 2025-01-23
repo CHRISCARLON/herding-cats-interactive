@@ -57,7 +57,7 @@ Once you've connected to a catalog, you can perform different actions depending 
 
 ## Additional Features
 
-- **Loading Data**: (does not work for French Gov Cat yet 🐈)
+- **Loading Data**:
   - Use `load <dataset_id> [format] [api-key]` to load a dataset and examine its structure and sample data. For OpenDataSoft, specify a format and optionally an API key.
 - **Rich Logging**: The application logs each interaction in a rich-text format for easy readability.
 
