@@ -44,7 +44,8 @@ class InputHandler:
             "package": self._handle_info,
             "dataset": self._handle_info,
             "resource": self._handle_info,
-            "load": self._handle_load 
+            "load": self._handle_load,
+            "search": self._handle_search
         }
 
         handler = command_handlers.get(command)
@@ -393,4 +394,41 @@ class InputHandler:
 
         except Exception as e:
             self.rich_log.write(Text(f"Error loading data: {str(e)}\n", 
+                                style=Style(color="red")))
+
+    async def _handle_search(self, cmd: list) -> None:
+        """Handle search commands for different catalog types."""
+        if not self.app.explorer:
+            self.rich_log.write(Text("No active connection. Please connect to a catalog first.\n", 
+                                style=Style(color="yellow")))
+            return
+
+        if len(cmd) < 2:
+            self.rich_log.write(Text("Please provide a search query\n", 
+                                style=Style(color="yellow")))
+            return
+
+        query = cmd[1]
+        num_rows = int(cmd[2]) if len(cmd) > 2 else 10  # Default to 10 results if not specified
+
+        try:
+            match self.app.explorer:
+                case CkanCatExplorer():
+                    results = self.app.explorer.package_search_condense(query, num_rows)
+                    if results:
+                        self.rich_log.write(Text(f"Found matches for: '{query}'\n\n", 
+                                            style=Style(color="green", bold=True)))
+                        results_formatted = self.app.logger_handler.write_structured_data(results)
+                        self.rich_log.write(results_formatted)
+                    else:
+                        self.rich_log.write(Text("No matching packages found\n", 
+                                            style=Style(color="yellow")))
+                case _:
+                    self.rich_log.write(Text("Search not supported for this catalog type\n", 
+                                        style=Style(color="yellow")))
+        except ValueError as ve:
+            self.rich_log.write(Text(f"Invalid input: {str(ve)}\n", 
+                                style=Style(color="red")))
+        except Exception as e:
+            self.rich_log.write(Text(f"Error during search: {str(e)}\n", 
                                 style=Style(color="red")))

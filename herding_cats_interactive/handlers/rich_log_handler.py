@@ -1,13 +1,17 @@
 from rich.text import Text
 from rich.style import Style
-
 from textual.widgets import RichLog
-
 from typing import Any
+from collections import deque
+from rich.text import Text
+from textual.widgets import RichLog
+from typing import Deque, Optional
 
-class TextualRichLogHandler:
+class ExtendedRichLogHandler:
     def __init__(self, log_display: RichLog):
-        self.log_display = log_display
+        self._rich_log = log_display
+        self._history: Deque[Text] = deque(maxlen=1000)
+        self._current_position: int = -1
         self.styles = {
             "INFO": Style(color="blue"),
             "SUCCESS": Style(color="green"),
@@ -82,7 +86,10 @@ class TextualRichLogHandler:
                 else:
                     # Add the actual value in green
                     result.append(f"{value}\n", style=Style(color="green"))
-
+                # Create the formatted text
+            
+            # Write to history and display
+            self.write(result)
             return result
 
         else:
@@ -95,21 +102,46 @@ class TextualRichLogHandler:
             return result
 
     def write(self, message):
-        """Write a message to the rich log display."""
+        """Write a message and store in history."""
         if hasattr(message, "record"):
             level = message.record["level"].name
             style = self.styles.get(level, Style())
             text = Text(str(message).strip() + "\n", style=style)
-            self.log_display.write(text)
         else:
-            if isinstance(message, Text):
-                self.log_display.write(message)
-            else:
-                self.log_display.write(Text(str(message).strip() + "\n"))
+            text = Text.from_markup(str(message).strip() + "\n") if not isinstance(message, Text) else message
+
+        # Add to history
+        self._history.append(text)
+        self._current_position = len(self._history) - 1
+        
+        # Write to RichLog
+        self._rich_log.write(text)
+
+    def show_previous(self) -> Optional[Text]:
+        """Show previous entry in history."""
+        if self._current_position > 0:
+            self._current_position -= 1
+            self._rich_log.clear()
+            for i in range(self._current_position + 1):
+                self._rich_log.write(self._history[i])
+            return self._history[self._current_position]
+        return None
+    
+    def show_next(self) -> Optional[Text]:
+        """Show next entry in history."""
+        if self._current_position < len(self._history) - 1:
+            self._current_position += 1
+            self._rich_log.clear()
+            for i in range(self._current_position + 1):
+                self._rich_log.write(self._history[i])
+            return self._history[self._current_position]
+        return None
 
     def clear(self):
-        """Clear the log display."""
-        self.log_display.clear()
+        """Clear both history and display."""
+        self._history.clear()
+        self._current_position = -1
+        self._rich_log.clear()
 
     def flush(self):
         """Required for handler interface."""

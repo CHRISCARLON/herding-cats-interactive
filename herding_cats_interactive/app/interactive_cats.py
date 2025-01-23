@@ -6,7 +6,7 @@ from rich.text import Text
 from rich.style import Style
 from loguru import logger
 
-from herding_cats_interactive.handlers.rich_log_handler import TextualRichLogHandler
+from herding_cats_interactive.handlers.rich_log_handler import ExtendedRichLogHandler
 from herding_cats_interactive.ui.components.catalogue_button import CatalogButton
 from herding_cats_interactive.ui.components.command_button import CommandButton
 from herding_cats_interactive.handlers.input_handler import InputHandler
@@ -23,14 +23,16 @@ class InteractiveCats(App):
 
     CSS = APP_CSS
     BINDINGS = [
-        ("q", "quit", "Quit"),
         ("escape", "reset_app", "Reset App"),
+        ("q", "quit", "Quit"),
         ("w", "show_catalogs", "Show Available Catalogs"),
         ("e", "show_commands", "Show Available Commands"),
+        ("b", "previous_log", "Previous Log"),
+        ("f", "next_log", "Next Log"),
         ("shift+left", "focus_log", "Focus RichLog"),
         ("shift+right", "focus_table", "Focus DataTable"),
         ("shift+down", "focus_input", "Focus Input"),
-        ("shift+up", "unfocus_input", "Unfocus Input")
+        ("shift+up", "unfocus_input", "Unfocus Input"),
     ]
 
     def __init__(self):
@@ -77,7 +79,11 @@ class InteractiveCats(App):
         # Set up logging handler
         rich_log = self.query_one(RichLog)
         rich_log.focus()
-        self.logger_handler = TextualRichLogHandler(rich_log)
+        self.logger_handler = ExtendedRichLogHandler(rich_log)
+
+        # Remove default logger handlers and add our custom handler
+        logger.remove()
+        logger.add(self.logger_handler, format="{message}")
 
         # Set up Data Table
         self.data_table = self.query_one(DataTable)
@@ -90,10 +96,6 @@ class InteractiveCats(App):
 
         # Set up no connection button
         self.no_connection_status_button = self.query_one("#no-connection-status")
-
-        # Remove default logger handlers and add our custom handler
-        logger.remove()
-        logger.add(self.logger_handler, format="{message}")
 
         # Display welcome message
         self._show_welcome_message(rich_log)
@@ -199,6 +201,16 @@ class InteractiveCats(App):
     def action_reset_app(self) -> None:
         """Reset the app to its initial state."""
         self.binding_handler.handle_action("reset_app")
+    
+    def action_previous_log(self) -> None:
+        """Show previous log entries."""
+        if self.logger_handler:
+            self.logger_handler.show_previous()
+
+    def action_next_log(self) -> None:
+        """Show next log entries."""
+        if self.logger_handler:
+            self.logger_handler.show_next()
 
     def format_catalog_list(self) -> Text:
         """Format the catalog list for display with rich text formatting."""
