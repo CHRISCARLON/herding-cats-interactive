@@ -1,6 +1,6 @@
 # HerdingCats Interactive 🐈‍⬛
 
-<img width="1501" alt="Screenshot 2025-01-22 at 20 02 48" src="https://github.com/user-attachments/assets/b500fe10-1942-4ffa-9086-f488cbe4f834" />
+https://github.com/user-attachments/assets/9d7c6869-8a8a-492a-bd8c-abb56f892243
 
 ## Getting Started
 
