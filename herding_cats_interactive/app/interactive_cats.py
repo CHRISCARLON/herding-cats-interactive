@@ -14,9 +14,14 @@ from herding_cats_interactive.handlers.binding_hanlder import BindingHandler
 from herding_cats_interactive.ui.styles.app_css import APP_CSS
 from herding_cats_interactive.utils.constants import catalogues
 
-from HerdingCats.session.cat_session import CatSession, CatalogueType
-from HerdingCats.explorer.cat_explore import CkanCatExplorer, OpenDataSoftCatExplorer, FrenchGouvCatExplorer
-from HerdingCats.data_loader.data_loader import CkanCatResourceLoader, OpenDataSoftResourceLoader, FrenchGouvResourceLoader
+from HerdingCats.session.session import CatSession, CatalogueType
+from HerdingCats.explorer.explore import (
+    CkanCatExplorer,
+    OpenDataSoftCatExplorer,
+    FrenchGouvCatExplorer,
+)
+from HerdingCats.loader.loader import CkanLoader, OpenDataSoftLoader, FrenchGouvLoader
+
 
 class InteractiveCats(App):
     """Interactive terminal application for the HerdingCats library."""
@@ -55,18 +60,22 @@ class InteractiveCats(App):
             Horizontal(
                 CatalogButton(self.catalogs),
                 CommandButton(self.explorer),
-                Button("Hot Key 1", id="hot-key-1",  classes="hot-keys"),
-                Button("Hot Key 2", id="hot-key-2",  classes="hot-keys"),
-                Button("Not Connected", id="no-connection-status", classes="no-connection-status"),
-                id="button-container"
+                Button("Hot Key 1", id="hot-key-1", classes="hot-keys"),
+                Button("Hot Key 2", id="hot-key-2", classes="hot-keys"),
+                Button(
+                    "Not Connected",
+                    id="no-connection-status",
+                    classes="no-connection-status",
+                ),
+                id="button-container",
             ),
             Horizontal(
                 RichLog(highlight=True, markup=True, id="rich-log"),
                 DataTable(id="data-table"),
-                id="main-content"
+                id="main-content",
             ),
             RichLog(highlight=True, markup=True, id="rich-log-2"),
-            id="secondary-content"
+            id="secondary-content",
         )
         yield Input(placeholder="Enter command (connect <catalog> to start)")
         yield Footer()
@@ -74,7 +83,7 @@ class InteractiveCats(App):
     def on_mount(self):
         """Initialize the application on startup."""
         # Set theme
-        self.theme = "dracula"
+        self.theme = "nord"
 
         # Set up logging handler
         rich_log = self.query_one(RichLog)
@@ -103,7 +112,7 @@ class InteractiveCats(App):
     def reset_app(self):
         """Reset the app to its initial state."""
         # Close any existing session
-        if hasattr(self, 'session') and self.session:
+        if hasattr(self, "session") and self.session:
             self.session.close_session()
             self.session = None
 
@@ -115,12 +124,16 @@ class InteractiveCats(App):
         self.loader = None
 
         # Remove the connected catalog button if it exists
-        if hasattr(self, 'active_catalog_button') and self.active_catalog_button:
+        if hasattr(self, "active_catalog_button") and self.active_catalog_button:
             self.active_catalog_button.remove()
             self.active_catalog_button = None
             button_container = self.query_one("#button-container")
             if not self.no_connection_status_button:
-                self.no_connection_status_button = Button("Not Connected", id="no-connection-status", classes="no-connection-status")
+                self.no_connection_status_button = Button(
+                    "Not Connected",
+                    id="no-connection-status",
+                    classes="no-connection-status",
+                )
             button_container.mount(self.no_connection_status_button)
 
         # Clear the input
@@ -135,10 +148,13 @@ class InteractiveCats(App):
          /\_/\
         ( o.o )
         """
-        welcome_text = Text(cat_art, style=Style(color="blue", bold=True))
-        welcome_text.append("Welcome to Interactive Cats\n \n", style=Style(color="green", bold=True))
-        welcome_text.append("        Use 'connect <catalog>' to start, or click 'Show Available Catalogs' to see options...",
-                        style=Style(color="white"))
+        welcome_text = Text(cat_art, style=Style(color="#5e81ac", bold=True))
+        welcome_text.append(
+            "Welcome to Interactive Cats\n \n", style=Style(color="white", bold=True)
+        )
+        welcome_text.append(
+            "        Use 'connect <catalog>' to start!", style=Style(color="white")
+        )
         rich_log.write(welcome_text)
 
     def clear_log(self):
@@ -153,23 +169,27 @@ class InteractiveCats(App):
         ( o.o )
         """
 
-        welcome_text = Text(cat_art, style=Style(color="blue", bold=True))
-        welcome_text.append("Welcome to Interactive Cats\n \n",
-                        style=Style(color="green", bold=True))
+        welcome_text = Text(cat_art, style=Style(color="#5e81ac", bold=True))
         welcome_text.append(
-            "        Use 'connect <catalog>' to start, or click 'Show Available Catalogs' to see options...",
-            style=Style(color="white")
+            "Welcome to Interactive Cats\n \n", style=Style(color="white", bold=True)
+        )
+        welcome_text.append(
+            "        Use 'connect <catalog>' to start!", style=Style(color="white")
         )
         rich_log.write(welcome_text)
 
-    def on_catalog_button_catalog_list_requested(self, message: CatalogButton.CatalogListRequested) -> None:
+    def on_catalog_button_catalog_list_requested(
+        self, message: CatalogButton.CatalogListRequested
+    ) -> None:
         """Handle the catalog list request."""
         rich_log = self.query_one(RichLog)
         rich_log.clear()
         rich_log.focus()
         rich_log.write(message.formatted_text)
 
-    def on_command_button_command_list_requested(self, message: CommandButton.CommandListRequested) -> None:
+    def on_command_button_command_list_requested(
+        self, message: CommandButton.CommandListRequested
+    ) -> None:
         """Handle the command list request."""
         rich_log = self.query_one(RichLog)
         rich_log.clear()
@@ -201,7 +221,7 @@ class InteractiveCats(App):
     def action_reset_app(self) -> None:
         """Reset the app to its initial state."""
         self.binding_handler.handle_action("reset_app")
-    
+
     def action_previous_log(self) -> None:
         """Show previous log entries."""
         if self.logger_handler:
@@ -239,11 +259,13 @@ class InteractiveCats(App):
         catalog_type = self.session.catalogue_type
         match catalog_type:
             case CatalogueType.CKAN:
-                return CkanCatExplorer(self.session), CkanCatResourceLoader()
+                return CkanCatExplorer(self.session), CkanLoader()
             case CatalogueType.OPENDATA_SOFT:
-                return OpenDataSoftCatExplorer(self.session), OpenDataSoftResourceLoader()
+                return OpenDataSoftCatExplorer(self.session), OpenDataSoftLoader()
             case CatalogueType.GOUV_FR:
-                return FrenchGouvCatExplorer(self.session), FrenchGouvResourceLoader()
+                return FrenchGouvCatExplorer(self.session), FrenchGouvLoader()
+
+        return None, None
 
     async def _check_site_health(self) -> None:
         """Check site health."""
@@ -282,8 +304,11 @@ class InteractiveCats(App):
 
         try:
             # Get info before closing
-            catalog_name = (self.active_catalog_button.label.split(":")[-1]
-                        if self.active_catalog_button else "UNKNOWN")
+            catalog_name = (
+                self.active_catalog_button.label.split(":")[-1]
+                if self.active_catalog_button
+                else "UNKNOWN"
+            )
             catalog_type = self.session.catalogue_type.value
 
             # Close connection and cleanup
@@ -300,7 +325,11 @@ class InteractiveCats(App):
             # Recreate and mount the no connection button if needed
             button_container = self.query_one("#button-container")
             if not self.no_connection_status_button:
-                self.no_connection_status_button = Button("Not Connected", id="no-connection-status", classes="no-connection-status")
+                self.no_connection_status_button = Button(
+                    "Not Connected",
+                    id="no-connection-status",
+                    classes="no-connection-status",
+                )
             button_container.mount(self.no_connection_status_button)
 
             return True, catalog_name, catalog_type
@@ -318,7 +347,6 @@ class InteractiveCats(App):
 
         button_container = self.query_one("#button-container")
         self.active_catalog_button = Button(
-            f"Connected: {catalog.upper()}",
-            classes="connected-button"
+            f"Connected: {catalog.upper()}", classes="connected-button"
         )
         button_container.mount(self.active_catalog_button)
